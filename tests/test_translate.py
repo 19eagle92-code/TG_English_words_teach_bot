@@ -58,37 +58,4 @@ if __name__ == "__main__":
     word = "машина"
     result = translate_word(word)
     print(result[0])
-    # print(f"{word} = {result}")
-
-# def translate_word(word):
-#     """
-#     Функция для перевода слова с русского на английский
-#     Возвращает первые два перевода (если есть)
-#     """
-#     try:
-#         params = {"key": dict_token, "lang": "ru-en", "text": word, "ui": "ru"}
-
-#         response = requests.get(url, params=params)
-
-#         if response.status_code == 200:
-#             data = response.json()
-
-#             # Проверяем, есть ли определения и переводы
-#             if data.get("def") and len(data["def"]) > 0:
-#                 translations = data["def"][0].get("tr", [])
-
-#                 # Берем первые два перевода (сколько есть)
-#                 trans_word_1 = translations[0].get("text") if len(translations) > 0 else None
-#                 trans_word_2 = translations[1].get("text") if len(translations) > 1 else None
-
-#                 return trans_word_1, trans_word_2
-#             else:
-#                 # Если нет переводов
-#                 return None, None
-#         else:
-#             print(f"Ошибка запроса: статус {response.status_code}")
-#             return None, None
-
-#     except Exception as e:
-#         print(f"Ошибка: {e}")
-#         return None, None
+    print(f"{word} = {result}")

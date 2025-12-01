@@ -12,7 +12,7 @@ import telebot.async_telebot as telebot
 
 load_dotenv()
 TOKEN = os.getenv("TG_BOT_TOKEN")
-# TOKEN = input("Insert your TG token:")
+# TOKEN = input("Insert your TG token:") #для проверки на стороннем боте
 
 state_storage = StateMemoryStorage()
 
@@ -40,11 +40,27 @@ class Command:
 
 
 # Handle '/start' and '/help'
-@bot.message_handler(commands=["help📎", "start"])
+@bot.message_handler(commands=["start"])
 async def send_welcome(message):
     user = message.from_user
     name = user.first_name
-    text = f"Hi {name}, I am ENG_words_teach_bot .\nLet's learn ENGLISH words!"
+    text = f"Hi {name}, I am ENG_words_teach_bot. \nLet's learn ENGLISH words! Please choose: \n/lesson - to start learning words \nor \n/help to know what i can"
+    await bot.reply_to(message, text)
+
+
+@bot.message_handler(commands=["help"])
+async def send_welcome(message):
+    user = message.from_user
+    name = user.first_name
+    text = f"{name}, I'll help you learn English words. Just add the ones you want to learn: \n/lesson - command to start learning words \nДобавить слово 📥 -add words to my database \nУдалить слово📤 -удалить выученные слова из базы данных \nДальше ⏭️ - next card with a word"
+    await bot.send_message(message.chat.id, text)
+
+
+@bot.message_handler(commands=["lesson"])
+async def send_welcome(message):
+    user = message.from_user
+    name = user.first_name
+    text = f"Hi {name}, I am ENG_words_teach_bot .\nLet's learn ENGLISH words! Please choose: \n/lesson - to start learning words \nor /help to know what i can"
     await bot.reply_to(message, text)
 
 
