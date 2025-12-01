@@ -8,7 +8,21 @@ from telebot import types, custom_filters
 from telebot.asyncio_storage import StateMemoryStorage
 from telebot.handler_backends import State, StatesGroup
 import telebot.async_telebot as telebot
+import sys
+import os
 
+# Добавляем родительскую директорию в путь Python
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from ENG_words_teach_bot_code.db_tables_create import (
+    create_tables,
+    Base,
+    User,
+    RussianWord,
+    EnglishWord,
+)
+
+from ENG_words_teach_bot_code.def_translate import translate_word
 
 load_dotenv()
 TOKEN = os.getenv("TG_BOT_TOKEN")

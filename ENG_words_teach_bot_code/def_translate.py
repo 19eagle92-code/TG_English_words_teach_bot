@@ -10,6 +10,7 @@ dict_token = os.getenv("API_YANDEX_DICT_TOKEN")
 # dict_token = input("Insert your Yandex API token:") #для использования стороннего токена
 
 
+# подробный вариант
 def translate_word(word):
     """
     Функция для перевода слова с русского на английский
@@ -54,12 +55,7 @@ def translate_word(word):
         return None, None
 
 
-if __name__ == "__main__":
-    word = "машина"
-    result = translate_word(word)
-    print(result[0])
-    # print(f"{word} = {result}")
-
+# упрощенный вариант
 # def translate_word(word):
 #     """
 #     Функция для перевода слова с русского на английский
