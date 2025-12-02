@@ -37,7 +37,7 @@ userStep = {}
 buttons = []
 
 
-def show_hint(*lines):
+async def show_hint(*lines):
     """Функция формирования многострочного сообщения"""
     return "\n".join(lines)
 
@@ -53,13 +53,23 @@ class Command:
     NEXT = "Дальше ⏭️"
 
 
-# Handle '/start' and '/help'
+# Handle '/start'
 @bot.message_handler(commands=["start"])
 async def send_welcome(message):
     user = message.from_user
     name = user.first_name
     text = f"Hi {name}, I am ENG_words_teach_bot. \nLet's learn ENGLISH words! Please choose: \n/lesson - to start learning words \nor \n/help to know what i can"
-    await bot.reply_to(message, text)
+
+    keyboard = types.InlineKeyboardMarkup(row_width=2)
+
+    button_help = types.InlineKeyboardButton(
+        text="Help 📎", callback_data="help"  # Данные, которые придут при нажатии
+    )
+
+    button_lesson = types.InlineKeyboardButton(text="Lesson 📖", callback_data="lesson")
+
+    keyboard.add(button_help, button_lesson)
+    await bot.reply_to(message, text, reply_markup=keyboard)
 
 
 @bot.message_handler(commands=["help"])
@@ -74,7 +84,7 @@ async def send_welcome(message):
 async def send_welcome(message):
     user = message.from_user
     name = user.first_name
-    text = f"Hi {name}, I am ENG_words_teach_bot .\nLet's learn ENGLISH words! Please choose: \n/lesson - to start learning words \nor /help to know what i can"
+    text = f"Hi {name}, abra kadabra"
     await bot.reply_to(message, text)
 
 
