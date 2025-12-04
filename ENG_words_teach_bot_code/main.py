@@ -23,6 +23,8 @@ from ENG_words_teach_bot_code.db_tables_create import (
     EnglishWord,
 )
 
+from ENG_words_teach_bot_code.work_with_storage import add_client
+
 from ENG_words_teach_bot_code.def_translate import translate_word
 
 load_dotenv()
@@ -57,8 +59,9 @@ class Command:
 @bot.message_handler(commands=["start"])
 async def send_welcome(message):
     user = message.from_user
-    name = user.first_name
-    text = f"Hi {name}, I am ENG_words_teach_bot. \nLet's learn ENGLISH words! Please choose: \n/lesson - to start learning words \nor \n/help to know what i can"
+    user_name = user.first_name
+    chat_id = message.chat.id
+    text = f"Hi {user_name}, I am ENG_words_teach_bot. \nLet's learn ENGLISH words! Please choose: \n/lesson - to start learning words \nor \n/help to know what i can"
 
     keyboard = types.InlineKeyboardMarkup(row_width=2)
 
@@ -69,6 +72,8 @@ async def send_welcome(message):
     button_lesson = types.InlineKeyboardButton(
         text="Lesson 📖", callback_data="/lesson"
     )
+
+    add_client(chat_id, user_name)
 
     keyboard.add(button_help, button_lesson)
     await bot.reply_to(message, text, reply_markup=keyboard)
