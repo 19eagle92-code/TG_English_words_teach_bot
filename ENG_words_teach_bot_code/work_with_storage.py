@@ -10,6 +10,7 @@ from ENG_words_teach_bot_code.db_tables_create import (
     RussianWord,
     EnglishWord,
 )
+from ENG_words_teach_bot_code.def_translate import translate_word
 from sqlalchemy.exc import IntegrityError
 from contextlib import contextmanager
 import sqlalchemy.exc
@@ -60,6 +61,40 @@ def add_client(chat_id, user_name):
             session.flush()
             print(f"ID созданного клиента:", new_user.user_id)
             return True
+
+    except sqlalchemy.exc.IntegrityError:
+        print("Ошибка: нарушение уникальности данных")
+        return False
+    except sqlalchemy.exc.SQLAlchemyError as e:
+        print(f"Ошибка базы данных: {e}")
+        return False
+    except Exception as e:
+        print(f"Непредвиденная ошибка: {e}")
+        return False
+
+
+def add_russian_word_with_translation(ru_word, chat_id, translation):
+
+    try:
+        with session_scope() as session:
+            # Находим клиента в бд
+            existing_client = session.query(User).filter_by(chat_id=chat_id).first()
+
+            if existing_client:
+                # добавляем слова для клиента
+                new_ru_word = RussianWord(
+                    ru_word=ru_word, user_id=existing_client.user_id
+                )
+                session.add(new_ru_word)
+                session.flush()
+
+                ru_word_id = new_ru_word.ru_word_id
+                new_en_word = EnglishWord(en_word=translation, ru_word_id=ru_word_id)
+                session.add(new_en_word)
+                print(f"Слово{ru_word} с переводом {translation} -  успешно добавлены")
+                return True
+            else:
+                return False
 
     except sqlalchemy.exc.IntegrityError:
         print("Ошибка: нарушение уникальности данных")
