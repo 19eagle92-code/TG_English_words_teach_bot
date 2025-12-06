@@ -61,7 +61,7 @@ async def send_welcome(message):
     user = message.from_user
     user_name = user.first_name
     chat_id = message.chat.id
-    text = f"Hi {user_name}, I am ENG_words_teach_bot. \nLet's learn ENGLISH words! Please choose: \n/lesson - to start learning words \nor \n/help to know what i can"
+    text = f"Привет{user_name}! Я ENG_words_teach_bot. \nДавай изучать английские слова! Пожалуйста выбери: \n/lesson - для начала урока \nor \n/help - что бы узнать что я могу"
 
     keyboard = types.InlineKeyboardMarkup(row_width=2)
 

@@ -156,17 +156,35 @@ def delete_word(word_to_delete, chat_id):
 
 
 def count_user_english_words(chat_id):
-    """Функция плдсчета количества изучаемых пользователем слов"""
+    """Функция подсчета количества изучаемых английских слов"""
     with session_scope() as session:
         user = session.query(User).filter_by(chat_id=chat_id).first()
 
         if not user:
             print(f"Пользователь с № {chat_id} не найден")
-            return False
+            return 0
 
         count = (
             session.query(func.count(EnglishWord.en_word_id))
             .join(RussianWord, RussianWord.ru_word_id == EnglishWord.ru_word_id)
+            .filter(RussianWord.user_id == user.user_id)
+            .scalar()
+        )
+
+        return count or 0
+
+
+def count_user_russian_words(chat_id):
+    """Функция подсчета количества руских слов в базе"""
+    with session_scope() as session:
+        user = session.query(User).filter_by(chat_id=chat_id).first()
+
+        if not user:
+            print(f"Пользователь с № {chat_id} не найден")
+            return 0
+
+        count = (
+            session.query(func.count(RussianWord.ru_word_id))
             .filter(RussianWord.user_id == user.user_id)
             .scalar()
         )
