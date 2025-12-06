@@ -49,9 +49,9 @@ def add_client(chat_id, user_name):
     try:
         with session_scope() as session:
             # Проверяем существование клиента
-            existing_client = session.query(User).filter_by(chat_id=chat_id).first()
+            user = session.query(User).filter_by(chat_id=chat_id).first()
 
-            if existing_client:
+            if user:
                 print(f"Клиент с таким {chat_id} уже существует")
                 return False
 
@@ -78,19 +78,16 @@ def add_russian_word_with_translation(ru_word, chat_id, translation):
     try:
         with session_scope() as session:
             # Находим клиента в бд
-            existing_client = session.query(User).filter_by(chat_id=chat_id).first()
+            user = session.query(User).filter_by(chat_id=chat_id).first()
 
-            if existing_client:
+            if user:
                 # добавляем слова для клиента
                 new_ru_word = RussianWord(
-                    ru_word=ru_word, user_id=existing_client.user_id
-                )
+                ru_word=ru_word,
+                user_id=user.user_id,
+                english_words=[EnglishWord(en_word=translation)]  # Создаем связь сразу
+            )
                 session.add(new_ru_word)
-                session.flush()
-
-                ru_word_id = new_ru_word.ru_word_id
-                new_en_word = EnglishWord(en_word=translation, ru_word_id=ru_word_id)
-                session.add(new_en_word)
                 print(f"Слово{ru_word} с переводом {translation} -  успешно добавлены")
                 return True
             else:
@@ -106,6 +103,21 @@ def add_russian_word_with_translation(ru_word, chat_id, translation):
         print(f"Непредвиденная ошибка: {e}")
         return False
 
+
+
+
+
+def delete_word(ru_word, chat_id):
+
+
+
+
+
+
+
+
+
+    
 
 try:
     session.add_all(read_json("ORM code/data/book_data.json"))
