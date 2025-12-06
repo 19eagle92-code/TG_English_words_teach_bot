@@ -18,6 +18,8 @@ from sqlalchemy.orm import Session
 import sqlalchemy
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
+from sqlalchemy import func
+
 
 load_dotenv()
 password = os.getenv("SECRET_KEY")
@@ -73,28 +75,35 @@ def add_client(chat_id, user_name):
         return False
 
 
-def add_russian_word_with_translation(ru_word, chat_id, translation):
-    """Функция добавления русского слова и его перевода"""
-
+def add_word_with_translations(ru_word, chat_id, trans_word_1, trans_word_2=None):
+    """Функция добавляет слово с одним или двумя переводами"""
     try:
         with session_scope() as session:
-            # Находим клиента в бд
             user = session.query(User).filter_by(chat_id=chat_id).first()
 
-            if user:
-                # добавляем слова для клиента
-                new_ru_word = RussianWord(
-                    ru_word=ru_word,
-                    user_id=user.user_id,
-                    english_words=[
-                        EnglishWord(en_word=translation)
-                    ],  # Создаем связь сразу
-                )
-                session.add(new_ru_word)
-                print(f"Слово{ru_word} с переводом {translation} -  успешно добавлены")
-                return True
-            else:
+            if not user:
+                print(f"Пользователь {chat_id} не найден")
                 return False
+
+            # Собираем непустые переводы
+            english_words_list = [EnglishWord(en_word=trans_word_1)]
+            if trans_word_2:  # Если есть второй перевод
+                english_words_list.append(EnglishWord(en_word=trans_word_2))
+
+            new_ru_word = RussianWord(
+                ru_word=ru_word, user_id=user.user_id, english_words=english_words_list
+            )
+
+            session.add(new_ru_word)
+            # Логируем
+            if trans_word_2:
+                print(
+                    f"Добавлено слово {ru_word} с переводами {trans_word_1}, {trans_word_2}"
+                )
+            else:
+                print(f"Добавлено слово {ru_word} с переводом {trans_word_1}")
+
+            return True
 
     except sqlalchemy.exc.IntegrityError:
         print("Ошибка: нарушение уникальности данных")
@@ -115,7 +124,7 @@ def delete_word(word_to_delete, chat_id):
             user = session.query(User).filter_by(chat_id=chat_id).first()
 
             if not user:
-                print(f"Пользователь с № {chat_id} не найден")
+                print(f"Пользователь {chat_id} не найден")
                 return False
 
             russian_word = (
@@ -151,15 +160,13 @@ def count_user_english_words(chat_id):
     with session_scope() as session:
         user = session.query(User).filter_by(chat_id=chat_id).first()
 
-        if user:
-            print(f"Клиент с таким {chat_id} уже существует")
+        if not user:
+            print(f"Пользователь с № {chat_id} не найден")
             return False
-
-        from sqlalchemy import func
 
         count = (
             session.query(func.count(EnglishWord.en_word_id))
-            .join(RussianWord)
+            .join(RussianWord, RussianWord.ru_word_id == EnglishWord.ru_word_id)
             .filter(RussianWord.user_id == user.user_id)
             .scalar()
         )
