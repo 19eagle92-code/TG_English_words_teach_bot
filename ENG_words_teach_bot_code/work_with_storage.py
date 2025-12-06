@@ -27,7 +27,7 @@ password = os.getenv("SECRET_KEY")
 DSN = f"postgresql://postgres:{password}@localhost:5432/english_words_bot"
 engine = sqlalchemy.create_engine(DSN)
 
-create_tables(engine)
+
 Session = sessionmaker(bind=engine)
 
 
@@ -161,7 +161,7 @@ def count_user_english_words(chat_id):
         user = session.query(User).filter_by(chat_id=chat_id).first()
 
         if not user:
-            print(f"Пользователь с № {chat_id} не найден")
+            print(f"Пользователь  {chat_id} не найден")
             return 0
 
         count = (
@@ -180,7 +180,7 @@ def count_user_russian_words(chat_id):
         user = session.query(User).filter_by(chat_id=chat_id).first()
 
         if not user:
-            print(f"Пользователь с № {chat_id} не найден")
+            print(f"Пользователь  {chat_id} не найден")
             return 0
 
         count = (
@@ -190,3 +190,38 @@ def count_user_russian_words(chat_id):
         )
 
         return count or 0
+
+
+def uniqe_word(new_word, chat_id):
+    """Функция проверки уникальности слова"""
+    # Проверяем что слово не пустое
+    if not new_word or not new_word.strip():
+        print("Пустое слово")
+        return False, "Пустое слово"
+
+    # Нормализуем слово (приводим к нижнему регистру)
+    normalized_word = new_word.strip().lower()
+
+    with session_scope() as session:
+        user = session.query(User).filter_by(chat_id=chat_id).first()
+
+        if not user:
+            print(f"Пользователь с № {chat_id} не найден")
+            return False, "Пользователь не найден"
+
+        # Ищем слово у этого пользователя
+        existing_word = (
+            session.query(RussianWord)
+            .filter_by(
+                ru_word=normalized_word,  # Ищем нормализованное слово
+                user_id=user.user_id,
+            )
+            .first()
+        )
+
+        # Проверяем найдено ли слово
+        if existing_word:
+            print(f'Слово "{new_word}" уже существует в базе')
+            return False, "Слово уже существует"
+        else:
+            return True, "Слово уникально"

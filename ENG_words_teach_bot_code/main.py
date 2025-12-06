@@ -23,21 +23,18 @@ from ENG_words_teach_bot_code.db_tables_create import (
     EnglishWord,
 )
 
-from ENG_words_teach_bot_code.work_with_storage import add_client
+from ENG_words_teach_bot_code.work_with_storage import *
 
 from ENG_words_teach_bot_code.def_translate import translate_word
+
 
 load_dotenv()
 TOKEN = os.getenv("TG_BOT_TOKEN")
 # TOKEN = input("Insert your TG token:") #для проверки на стороннем боте
 
-
 bot = AsyncTeleBot(TOKEN)
 
-known_users = []
-userStep = {}
-buttons = []
-
+# create_tables(engine)
 
 # async def show_hint(*lines):
 #     """Функция формирования многострочного сообщения"""
@@ -47,6 +44,7 @@ buttons = []
 # def show_target(data):
 #     """Функция формирования строки ответа"""
 #     return f"{data['target_word']} -> {data['translate_word']}"
+user_states = {}  # хранение состояний
 
 
 class Command:
@@ -61,7 +59,8 @@ async def send_welcome(message):
     user = message.from_user
     user_name = user.first_name
     chat_id = message.chat.id
-    text = f"Привет{user_name}! Я ENG_words_teach_bot. \nДавай изучать английские слова! Пожалуйста выбери: \n/lesson - для начала урока \nor \n/help - что бы узнать что я могу"
+    text = f"👋Привет {user_name}! Я English words teacher. \nДавай изучать английские слова! Пожалуйста выбери: \n/lesson - для начала урока \nили \n/help - что бы узнать что я могу \nили \n/info - узнать сколько слов вы сейчас изучаете"
+    add_client(chat_id, user_name)
 
     keyboard = types.InlineKeyboardMarkup(row_width=2)
 
@@ -69,48 +68,287 @@ async def send_welcome(message):
         text="Help 📎", callback_data="help"  # Данные, которые придут при нажатии
     )
 
-    button_lesson = types.InlineKeyboardButton(
-        text="Lesson 📖", callback_data="/lesson"
+    button_lesson = types.InlineKeyboardButton(text="Lesson 📖", callback_data="lesson")
+
+    button_info = types.InlineKeyboardButton(text="Info ℹ️", callback_data="info")
+
+    keyboard_settings = types.IKeyboardMarkup(row_width=2)
+    button_add = types.KeyboardButton(text="Добавить слово 📥", callback_data="add")
+    button_delete = types.KeyboardButton(
+        text="Удалить слово 📤", callback_data="delete"
     )
 
-    add_client(chat_id, user_name)
-
-    keyboard.add(button_help, button_lesson)
+    keyboard.add(button_help, button_lesson, button_info)
+    keyboard_settings.add(button_add, button_delete)
     await bot.reply_to(message, text, reply_markup=keyboard)
+    await bot.reply_to(message, text, reply_markup=keyboard_settings)
 
 
-# обработканажатий на кнопки help и lesson
+# обработканажатий на кнопки help, lesson и info
 @bot.callback_query_handler(func=lambda call: True)
 async def handle_callback(call):
-    # call.data содержит callback_data из кнопки
+    user = call.from_user
+    name = user.first_name
     if call.data == "help":
-        user = call.from_user
-        name = user.first_name
-        text = f"{name}, I'll help you learn English words. Just add the ones you want to learn: \n/lesson - command to start learning words \nДобавить слово 📥 -add words to my database \nУдалить слово📤 -удалить выученные слова из базы данных \nДальше ⏭️ - next card with a word"
+        text = (
+            f"{name}, я помогу тебе учить английские слова!\n\n"
+            " Основные команды:\n"
+            "• /start - Начать работу с ботом\n"
+            "• /info - Узнать количество изучаемых слов\n"
+            "• /add - Добавить слово 📥 - Добавить новое слово в словарь\n"
+            "• /delete - Удалить слово 📤 - Удалить выученное слово\n"
+            "• /cancel - Прервать операцию по добавлению или удалению слова \n"
+            "• /next - Дальше ⏭️ - Следующее слово для повторения\n"
+            "🎓 Учи слова регулярно для лучшего запоминания!"
+        )
         await bot.answer_callback_query(call.id)
         await bot.send_message(call.message.chat.id, text)
 
     elif call.data == "lesson":
         await bot.answer_callback_query(call.id)
-        await bot.send_message(call.message.chat.id, "Lets start lesson")
+        await bot.send_message(call.message.chat.id, "Давай начнем урок")
+
+    elif call.data == "info":
+        chat_id = call.message.chat.id
+        count = count_user_english_words(chat_id)
+        if count is False or count == 0:
+            text = "У вас еще нет добавленных слов🥲"
+        else:
+            # Склонение слова "слов"
+            if count % 10 == 1 and count % 100 != 11:
+                word = "слово"
+            elif 2 <= count % 10 <= 4 and (count % 100 < 10 or count % 100 >= 20):
+                word = "слова"
+            else:
+                word = "слов"
+            text = f"📊 Сейчас вы изучаете {count} английских {word}"
+        await bot.answer_callback_query(call.id)
+        await bot.send_message(call.message.chat.id, text)
 
 
-# @bot.message_handler(commands=["help"])
-# async def send_welcome(message):
-#     user = message.from_user
-#     name = user.first_name
-#     text = f"{name}, I'll help you learn English words. Just add the ones you want to learn: \n/lesson - command to start learning words \nДобавить слово 📥 -add words to my database \nУдалить слово📤 -удалить выученные слова из базы данных \nДальше ⏭️ - next card with a word"
-#     await bot.send_message(message.chat.id, text)
+@bot.message_handler(commands=["info"])
+async def send_info(message):
+    chat_id = message.chat.id
+    count = count_user_english_words(chat_id)
+    if count is False or count == 0:
+        text = "У вас еще нет добавленных слов🥲"
+    else:
+        # Склонение слова "слов"
+        if count % 10 == 1 and count % 100 != 11:
+            word = "слово"
+        elif 2 <= count % 10 <= 4 and (count % 100 < 10 or count % 100 >= 20):
+            word = "слова"
+        else:
+            word = "слов"
+        text = f"📊 Сейчас вы изучаете {count} английских {word}"
+    await bot.send_message(message.chat.id, text)
 
 
-@bot.message_handler(commands=["lesson"])
+@bot.message_handler(commands=["help"])
+async def send_help(message):
+    name = message.from_user.first_name
+    text = (
+        f"{name}, я помогу тебе учить английские слова!\n\n"
+        " Основные команды:\n"
+        "• /start - Начать работу с ботом\n"
+        "• /info - Узнать количество изучаемых слов\n"
+        "• /add - Добавить слово 📥 - Добавить новое слово в словарь\n"
+        "• /delete - Удалить слово 📤 - Удалить выученное слово\n"
+        "• /cancel - Прервать операцию по добавлению или удалению слова \n"
+        "• /next - Дальше ⏭️ - Следующее слово для повторения\n"
+        "🎓 Учи слова регулярно для лучшего запоминания!"
+    )
+    await bot.send_message(message.chat.id, text)
+
+
+@bot.message_handler(commands=["add"])
+async def send_add(message: types.Message):
+    """получаем слово от пользователя"""
+    chat_id = message.chat.id
+
+    # Устанавливаем состояние "ожидаем слово" для пользователя
+    user_states[chat_id] = "waiting_for_word"
+
+    await bot.reply_to(message, "Введите русское слово для добавления в словарь:")
+
+
+@bot.message_handler(func=lambda message: True)  # Обрабатывает все сообщения
+async def handle_all_messages(message: types.Message):
+    chat_id = message.chat.id
+
+    # Проверяем, находится ли пользователь в состоянии добавления слова
+    if chat_id in user_states and user_states[chat_id] == "waiting_for_word":
+        # приводим слово к нижнему регистру
+        russian_word = message.text.strip()
+        reg_russian_word = russian_word.lower()
+
+        # Проверяем уникальность
+        is_unique, message_text = uniqe_word(reg_russian_word, chat_id)
+
+        if not is_unique:
+            # Удаляем состояние
+            del user_states[chat_id]
+            await bot.reply_to(message, f"Слово '{russian_word}' уже существует в базе")
+            return  # Выходим из функции
+
+        # Получаем перевод
+        trans_word_1, trans_word_2 = translate_word(reg_russian_word)
+
+        if trans_word_1 is None or not trans_word_1:
+            await message.reply(
+                f"❌ Ошибка при переводе слова '{russian_word}'.\n\n"
+                " Проверьте написание и попробуйте ввести слово еще раз:"
+            )
+            return  # Выходим из функции
+
+        # Добавляем в БД
+        success = add_word_with_translations(
+            ru_word=reg_russian_word,
+            chat_id=chat_id,
+            trans_word_1=trans_word_1,
+            trans_word_2=trans_word_2,
+        )
+
+        if success:
+            if trans_word_2:
+                await message.reply(
+                    f" Слово '{russian_word}' успешно добавлено ✅\n\n"
+                    f"  Переводится как '{trans_word_1}' или '{trans_word_2}' "
+                )
+            else:
+                await message.reply(
+                    f" Слово '{russian_word}' успешно добавлено ✅\n\n"
+                    f"  Переводится как '{trans_word_1}'"
+                )
+        else:
+            await message.reply(f"❌ Ошибка при добавлении слова '{russian_word}'")
+
+        if chat_id in user_states:
+            del user_states[chat_id]
+
+
+@bot.message_handler(commands=["delete"])
+async def send_delete(message: types.Message):
+    """получаем слово от пользователя"""
+    chat_id = message.chat.id
+
+    # Устанавливаем состояние "ожидаем слово" для пользователя
+    user_states[chat_id] = "waiting_for_word_to_delete"
+
+    await bot.reply_to(message, "Введите русское слово для удаления из словаря:")
+
+
+@bot.message_handler(func=lambda message: True)  # Обрабатывает все сообщения
+async def handle_all_messages(message: types.Message):
+    chat_id = message.chat.id
+
+    # Проверяем, находится ли пользователь в состоянии добавления слова
+    if chat_id in user_states and user_states[chat_id] == "waiting_for_word_to_delete":
+        # приводим слово к нижнему регистру
+        russian_word = message.text.strip()
+        reg_russian_word = russian_word.lower()
+
+        # Проверяем уникальность
+        is_unique, msg = uniqe_word(reg_russian_word, chat_id)
+
+        if not is_unique and msg == "Слово уже существует":
+            deleted = delete_word(reg_russian_word, chat_id)
+            if deleted:
+                await message.reply(f" Слово '{russian_word}' удалено✅")
+            else:
+                await message.reply(f"❌ Ошибка при удалении")
+        elif not is_unique:
+            # Другая ошибка (пользователь не найден)
+            await message.reply(f"❌ {msg}")
+        else:
+            # Слово не существует (is_unique == True)
+            await message.reply(f"ℹ️ Слово '{russian_word}' не найдено")
+
+        # Удаляем состояние в любом случае
+        if chat_id in user_states:
+            del user_states[chat_id]
+
+
+@bot.message_handler(commands=["cancel"])
+async def cancel_command(message: types.Message):
+    chat_id = message.chat.id
+    if chat_id in user_states:
+        del user_states[chat_id]
+        await message.reply("✅ Операция отменена")
+
+
+@bot.message_handler(commands=["lesson", "next"])
 async def send_welcome(message):
+    buttons = []
     user = message.from_user
     name = user.first_name
+
+    keyboard_cards = types.InlineKeyboardMarkup(row_width=2)
+    keyboard_settings = types.KeyboardMarkup(row_width=2)
+
+    button_right = types.InlineKeyboardButton(
+        text="Help 📎", callback_data="right"  # Данные, которые придут при нажатии
+    )
+    button_wrong_1 = types.InlineKeyboardButton(
+        text="Lesson 📖", callback_data="wrong_1"
+    )
+    button_wrong_2 = types.InlineKeyboardButton(text="Info ℹ️", callback_data="wrong_2")
+    button_wrong_3 = types.InlineKeyboardButton(text="Info ℹ️", callback_data="wrong_3")
+    button_next = types.InlineKeyboardButton(text="Дальше⏭️", callback_data="next")
+
+    answers = random.shuffle(
+        button_wrong_1, button_wrong_2, button_wrong_3, button_right
+    )
+
     text = f"Hi {name}, abra kadabra"
+
+    keyboard_cards.add(answers, button_next)
+    await bot.reply_to(message, text, reply_markup=keyboard_cards)
     await bot.reply_to(message, text)
 
 
+@bot.callback_query_handler(func=lambda call: True)
+async def handle_callback(call):
+    user = call.from_user
+    name = user.first_name
+    if call.data == "help":
+        text = (
+            f"{name}, я помогу тебе учить английские слова!\n\n"
+            " Основные команды:\n"
+            "• /start - Начать работу с ботом\n"
+            "• /info - Узнать количество изучаемых слов\n"
+            "• /add - Добавить слово 📥 - Добавить новое слово в словарь\n"
+            "• /delete - Удалить слово 📤 - Удалить выученное слово\n"
+            "• /cancel - Прервать операцию по добавлению или удалению слова \n"
+            "• /next - Дальше ⏭️ - Следующее слово для повторения\n"
+            "🎓 Учи слова регулярно для лучшего запоминания!"
+        )
+        await bot.answer_callback_query(call.id)
+        await bot.send_message(call.message.chat.id, text)
+
+    elif call.data == "lesson":
+        await bot.answer_callback_query(call.id)
+        await bot.send_message(call.message.chat.id, "Давай начнем урок")
+
+    elif call.data == "info":
+        chat_id = call.message.chat.id
+        count = count_user_english_words(chat_id)
+        if count is False or count == 0:
+            text = "У вас еще нет добавленных слов🥲"
+        else:
+            # Склонение слова "слов"
+            if count % 10 == 1 and count % 100 != 11:
+                word = "слово"
+            elif 2 <= count % 10 <= 4 and (count % 100 < 10 or count % 100 >= 20):
+                word = "слова"
+            else:
+                word = "слов"
+            text = f"📊 Сейчас вы изучаете {count} английских {word}"
+        await bot.answer_callback_query(call.id)
+        await bot.send_message(call.message.chat.id, text)
+
+
+######################################################################
 @bot.message_handler(commands=["cards", "start"])
 def create_cards(message):
     cid = message.chat.id
