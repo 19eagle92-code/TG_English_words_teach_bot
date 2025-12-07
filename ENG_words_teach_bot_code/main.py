@@ -63,6 +63,9 @@ async def send_welcome(message):
     add_client(chat_id, user_name)
 
     keyboard = types.InlineKeyboardMarkup(row_width=2)
+    keyboard_settings = types.ReplyKeyboardMarkup(
+        resize_keyboard=True, row_width=2, one_time_keyboard=False
+    )
 
     button_help = types.InlineKeyboardButton(
         text="Help 📎", callback_data="help"  # Данные, которые придут при нажатии
@@ -79,7 +82,9 @@ async def send_welcome(message):
     )
 
     keyboard.add(button_help, button_lesson, button_info)
-    keyboard_settings.add(button_add, button_delete)
+    keyboard_settings.add(
+        button_add("Добавить слово 📥"), button_delete("Удалить слово 📤")
+    )
     await bot.reply_to(message, text, reply_markup=keyboard)
     await bot.reply_to(message, text, reply_markup=keyboard_settings)
 
@@ -161,9 +166,20 @@ async def send_help(message):
     await bot.send_message(message.chat.id, text)
 
 
+@bot.message_handler(func=lambda m: m.text == "Добавить слово 📥")
+async def add_word_button(message: types.Message):
+    """получаем слово от пользователя по кнопке"""
+    chat_id = message.chat.id
+
+    # Устанавливаем состояние "ожидаем слово" для пользователя
+    user_states[chat_id] = "waiting_for_word"
+
+    await bot.reply_to(message, "Введите русское слово для добавления в словарь:")
+
+
 @bot.message_handler(commands=["add"])
 async def send_add(message: types.Message):
-    """получаем слово от пользователя"""
+    """получаем слово от пользователя по команде"""
     chat_id = message.chat.id
 
     # Устанавливаем состояние "ожидаем слово" для пользователя
@@ -227,9 +243,20 @@ async def handle_all_messages(message: types.Message):
             del user_states[chat_id]
 
 
+@bot.message_handler(func=lambda m: m.text == "Удалить слово 📤")
+async def send_delete(message: types.Message):
+    """получаем слово от пользователя по кнопке"""
+    chat_id = message.chat.id
+
+    # Устанавливаем состояние "ожидаем слово" для пользователя
+    user_states[chat_id] = "waiting_for_word_to_delete"
+
+    await bot.reply_to(message, "Введите русское слово для удаления из словаря:")
+
+
 @bot.message_handler(commands=["delete"])
 async def send_delete(message: types.Message):
-    """получаем слово от пользователя"""
+    """получаем слово от пользователя по команде"""
     chat_id = message.chat.id
 
     # Устанавливаем состояние "ожидаем слово" для пользователя
