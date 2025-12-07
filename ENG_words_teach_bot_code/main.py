@@ -178,7 +178,7 @@ async def add_word_button(message: types.Message):
 
 
 @bot.message_handler(commands=["add"])
-async def send_add(message: types.Message):
+async def add_word(message: types.Message):
     """получаем слово от пользователя по команде"""
     chat_id = message.chat.id
 
@@ -243,26 +243,21 @@ async def handle_all_messages(message: types.Message):
             del user_states[chat_id]
 
 
-@bot.message_handler(func=lambda m: m.text == "Удалить слово 📤")
-async def send_delete(message: types.Message):
-    """получаем слово от пользователя по кнопке"""
+async def start_delete_process(message: types.Message):
+    """Общая функция для начала удаления"""
     chat_id = message.chat.id
-
-    # Устанавливаем состояние "ожидаем слово" для пользователя
     user_states[chat_id] = "waiting_for_word_to_delete"
-
     await bot.reply_to(message, "Введите русское слово для удаления из словаря:")
+
+
+@bot.message_handler(func=lambda m: m.text == "Удалить слово 📤")
+async def delete_word_button(message: types.Message):
+    await start_delete_process(message)
 
 
 @bot.message_handler(commands=["delete"])
-async def send_delete(message: types.Message):
-    """получаем слово от пользователя по команде"""
-    chat_id = message.chat.id
-
-    # Устанавливаем состояние "ожидаем слово" для пользователя
-    user_states[chat_id] = "waiting_for_word_to_delete"
-
-    await bot.reply_to(message, "Введите русское слово для удаления из словаря:")
+async def delete_word_command(message: types.Message):
+    await start_delete_process(message)
 
 
 @bot.message_handler(func=lambda message: True)  # Обрабатывает все сообщения
