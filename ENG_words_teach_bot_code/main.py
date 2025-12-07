@@ -76,15 +76,13 @@ async def send_welcome(message):
     button_info = types.InlineKeyboardButton(text="Info ℹ️", callback_data="info")
 
     keyboard_settings = types.IKeyboardMarkup(row_width=2)
-    button_add = types.KeyboardButton(text="Добавить слово 📥", callback_data="add")
-    button_delete = types.KeyboardButton(
-        text="Удалить слово 📤", callback_data="delete"
-    )
+    button_add = types.KeyboardButton("Добавить слово 📥")
+    button_delete = types.KeyboardButton("Удалить слово 📤")
+    button_cancel = types.KeyboardButton("Отмена")
 
     keyboard.add(button_help, button_lesson, button_info)
-    keyboard_settings.add(
-        button_add("Добавить слово 📥"), button_delete("Удалить слово 📤")
-    )
+    keyboard_settings.add(button_add, button_delete, button_cancel)
+
     await bot.reply_to(message, text, reply_markup=keyboard)
     await bot.reply_to(message, text, reply_markup=keyboard_settings)
 
@@ -159,7 +157,7 @@ async def send_help(message):
         "• /info - Узнать количество изучаемых слов\n"
         "• /add - Добавить слово 📥 - Добавить новое слово в словарь\n"
         "• /delete - Удалить слово 📤 - Удалить выученное слово\n"
-        "• /cancel - Прервать операцию по добавлению или удалению слова \n"
+        "• /cancel - Отмена - Прервать операцию по добавлению или удалению слова \n"
         "• /next - Дальше ⏭️ - Следующее слово для повторения\n"
         "🎓 Учи слова регулярно для лучшего запоминания!"
     )
@@ -293,6 +291,14 @@ async def handle_all_messages(message: types.Message):
 
 @bot.message_handler(commands=["cancel"])
 async def cancel_command(message: types.Message):
+    chat_id = message.chat.id
+    if chat_id in user_states:
+        del user_states[chat_id]
+        await message.reply("✅ Операция отменена")
+
+
+@bot.message_handler(func=lambda m: m.text == "Отмена")
+async def cancel_button(message: types.Message):
     chat_id = message.chat.id
     if chat_id in user_states:
         del user_states[chat_id]
