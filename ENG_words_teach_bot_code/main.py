@@ -45,6 +45,8 @@ bot = AsyncTeleBot(TOKEN)
 #     """Функция формирования строки ответа"""
 #     return f"{data['target_word']} -> {data['translate_word']}"
 user_states = {}  # хранение состояний
+lesson_right_word = []
+lesson_wrong_words = []
 
 
 class Command:
@@ -304,14 +306,24 @@ async def cancel_button(message: types.Message):
         await message.reply("✅ Операция отменена")
 
 
+@bot.message_handler(func=lambda m: m.text == "Lesson 📖")
+async def add_lesson_button(message: types.Message):
+    """получаем слово от пользователя по кнопке"""
+    chat_id = message.chat.id
+
+    # Устанавливаем состояние "ожидаем слово" для пользователя
+    user_states[chat_id] = "waiting_for_word"
+
+    await bot.reply_to(message, "Введите русское слово для добавления в словарь:")
+
+
 @bot.message_handler(commands=["lesson", "next"])
-async def send_welcome(message):
+async def lesson_command(message):
     buttons = []
     user = message.from_user
     name = user.first_name
 
     keyboard_cards = types.InlineKeyboardMarkup(row_width=2)
-    keyboard_settings = types.KeyboardMarkup(row_width=2)
 
     button_right = types.InlineKeyboardButton(
         text="Help 📎", callback_data="right"  # Данные, которые придут при нажатии
@@ -331,108 +343,31 @@ async def send_welcome(message):
 
     keyboard_cards.add(answers, button_next)
     await bot.reply_to(message, text, reply_markup=keyboard_cards)
-    await bot.reply_to(message, text)
 
 
 @bot.callback_query_handler(func=lambda call: True)
 async def handle_callback(call):
     user = call.from_user
     name = user.first_name
-    if call.data == "help":
-        text = (
-            f"{name}, я помогу тебе учить английские слова!\n\n"
-            " Основные команды:\n"
-            "• /start - Начать работу с ботом\n"
-            "• /info - Узнать количество изучаемых слов\n"
-            "• /add - Добавить слово 📥 - Добавить новое слово в словарь\n"
-            "• /delete - Удалить слово 📤 - Удалить выученное слово\n"
-            "• /cancel - Прервать операцию по добавлению или удалению слова \n"
-            "• /next - Дальше ⏭️ - Следующее слово для повторения\n"
-            "🎓 Учи слова регулярно для лучшего запоминания!"
-        )
+
+    if call.data == "right":
+        text = "right"
+
         await bot.answer_callback_query(call.id)
         await bot.send_message(call.message.chat.id, text)
 
-    elif call.data == "lesson":
-        await bot.answer_callback_query(call.id)
-        await bot.send_message(call.message.chat.id, "Давай начнем урок")
-
-    elif call.data == "info":
-        chat_id = call.message.chat.id
-        count = count_user_english_words(chat_id)
-        if count is False or count == 0:
-            text = "У вас еще нет добавленных слов🥲"
-        else:
-            # Склонение слова "слов"
-            if count % 10 == 1 and count % 100 != 11:
-                word = "слово"
-            elif 2 <= count % 10 <= 4 and (count % 100 < 10 or count % 100 >= 20):
-                word = "слова"
-            else:
-                word = "слов"
-            text = f"📊 Сейчас вы изучаете {count} английских {word}"
+    elif call.data == "wrong_1":
+        text = "wrong_1"
         await bot.answer_callback_query(call.id)
         await bot.send_message(call.message.chat.id, text)
-
-
-######################################################################
-@bot.message_handler(commands=["cards", "start"])
-def create_cards(message):
-    cid = message.chat.id
-    if cid not in known_users:
-        known_users.append(cid)
-        userStep[cid] = 0
-        bot.send_message(cid, "Hello, stranger, let study English...")
-    markup = types.ReplyKeyboardMarkup(row_width=2)
-
-    global buttons
-    buttons = []
-    target_word = "Peace"  # брать из БД
-    translate = "Мир"  # брать из БД
-    target_word_btn = types.KeyboardButton(target_word)
-    buttons.append(target_word_btn)
-    others = ["Green", "White", "Hello", "Car"]  # брать из БД
-    other_words_btns = [types.KeyboardButton(word) for word in others]
-    buttons.extend(other_words_btns)
-    random.shuffle(buttons)
-    next_btn = types.KeyboardButton(Command.NEXT)
-    add_word_btn = types.KeyboardButton(Command.ADD_WORD)
-    delete_word_btn = types.KeyboardButton(Command.DELETE_WORD)
-    buttons.extend([next_btn, add_word_btn, delete_word_btn])
-
-    markup.add(*buttons)
-
-    greeting = f"Выбери перевод слова:\n🇷🇺 {translate}"
-    bot.send_message(message.chat.id, greeting, reply_markup=markup)
-    bot.set_state(message.from_user.id, MyStates.target_word, message.chat.id)
-    with bot.retrieve_data(message.from_user.id, message.chat.id) as data:
-        data["target_word"] = target_word
-        data["translate_word"] = translate
-        data["other_words"] = others
-
-
-@bot.message_handler(func=lambda message: message.text == Command.NEXT)
-def next_cards(message):
-    create_cards(message)
-
-
-@bot.message_handler(func=lambda message: message.text == Command.DELETE_WORD)
-def delete_word(message):
-    with bot.retrieve_data(message.from_user.id, message.chat.id) as data:
-        print(data["target_word"])  # удалить из БД
-
-
-@bot.message_handler(func=lambda message: message.text == Command.ADD_WORD)
-def add_word(message):
-    cid = message.chat.id
-    userStep[cid] = 1
-    print(message.text)  # сохранить в БД
-
-
-# Handle all other messages with content_type 'text' (content_types defaults to ['text'])
-@bot.message_handler(func=lambda message: True)
-async def echo_message(message):
-    await bot.reply_to(message, message.text)
+    elif call.data == "wrong_2":
+        text = "wrong_2"
+        await bot.answer_callback_query(call.id)
+        await bot.send_message(call.message.chat.id, text)
+    elif call.data == "wrong_3":
+        text = "wrong_3"
+        await bot.answer_callback_query(call.id)
+        await bot.send_message(call.message.chat.id, text)
 
 
 if __name__ == "__main__":

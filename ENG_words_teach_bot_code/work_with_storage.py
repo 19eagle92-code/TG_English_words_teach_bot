@@ -225,3 +225,52 @@ def uniqe_word(new_word, chat_id):
             return False, "Слово уже существует"
         else:
             return True, "Слово уникально"
+
+
+import random
+
+
+def random_right_ru_en_couple(chat_id):
+    """Функция получения пары русского слова с переводом. И еще 3х рандомных переводов"""
+    with session_scope() as session:
+        user = session.query(User).filter_by(chat_id=chat_id).first()
+
+        if not user:
+            print(f"Пользователь {chat_id} не найден")
+            return None, None, []
+
+        # Случайное русское слово пользователя
+        random_ru_word = (
+            session.query(RussianWord)
+            .filter_by(user_id=user.user_id)
+            .order_by(func.random())
+            .first()
+        )
+
+        if not random_ru_word or not random_ru_word.english_words:
+            print(f"У пользователя {chat_id} нет слов в словаре")
+            return None, None, []
+
+        # СЛУЧАЙНЫЙ перевод из всех доступных для ЭТОГО слова
+        correct_translation = random.choice(random_ru_word.english_words).en_word
+
+        # Берем по ОДНОМУ случайному переводу от КАЖДОГО другого русского слова
+        wrong_translations = []
+
+        # Находим другие русские слова пользователя (кроме текущего)
+        other_russian_words = (
+            session.query(RussianWord)
+            .filter(
+                RussianWord.user_id == user.user_id,
+                RussianWord.ru_word_id != random_ru_word.ru_word_id,
+            )
+            .all()
+        )
+
+        # Для каждого русского слова берем случайный перевод
+        for ru_word in other_russian_words[:3]:  # Берем максимум 3 слова
+            if ru_word.english_words:
+                random_translation = random.choice(ru_word.english_words).en_word
+                wrong_translations.append(random_translation)
+
+        return random_ru_word.ru_word, correct_translation, wrong_translations
