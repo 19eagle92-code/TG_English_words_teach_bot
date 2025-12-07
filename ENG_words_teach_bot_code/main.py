@@ -34,19 +34,10 @@ TOKEN = os.getenv("TG_BOT_TOKEN")
 
 bot = AsyncTeleBot(TOKEN)
 
-# create_tables(engine)
-
-# async def show_hint(*lines):
-#     """Функция формирования многострочного сообщения"""
-#     return "\n".join(lines)
-
-
-# def show_target(data):
-#     """Функция формирования строки ответа"""
-#     return f"{data['target_word']} -> {data['translate_word']}"
 user_states = {}  # хранение состояний
-lesson_right_word = []
-lesson_wrong_words = []
+russin_word = {}
+lesson_right_word = {}
+lesson_wrong_words = {}
 
 
 class Command:
@@ -319,36 +310,51 @@ async def add_lesson_button(message: types.Message):
 
 @bot.message_handler(commands=["lesson", "next"])
 async def lesson_command(message):
-    buttons = []
+
     user = message.from_user
     name = user.first_name
+    chat_id = message.chat.id
+    # очищаем перед вызовом функции
+    del russin_word[chat_id]
+    del lesson_right_word[chat_id]
+    del lesson_wrong_words[chat_id]
+
+    ru_word, right_translation, wrong_translations = random_right_ru_en_couple(chat_id)
 
     keyboard_cards = types.InlineKeyboardMarkup(row_width=2)
 
     button_right = types.InlineKeyboardButton(
-        text="Help 📎", callback_data="right"  # Данные, которые придут при нажатии
+        text=right_translation,
+        callback_data="right",  # Данные, которые придут при нажатии
     )
     button_wrong_1 = types.InlineKeyboardButton(
-        text="Lesson 📖", callback_data="wrong_1"
+        text=wrong_translations[0], callback_data="wrong_1"
     )
-    button_wrong_2 = types.InlineKeyboardButton(text="Info ℹ️", callback_data="wrong_2")
-    button_wrong_3 = types.InlineKeyboardButton(text="Info ℹ️", callback_data="wrong_3")
+    button_wrong_2 = types.InlineKeyboardButton(
+        text=wrong_translations[1], callback_data="wrong_2"
+    )
+    button_wrong_3 = types.InlineKeyboardButton(
+        text=wrong_translations[2], callback_data="wrong_3"
+    )
     button_next = types.InlineKeyboardButton(text="Дальше⏭️", callback_data="next")
 
     answers = random.shuffle(
         button_wrong_1, button_wrong_2, button_wrong_3, button_right
     )
 
-    text = f"Hi {name}, abra kadabra"
+    text = f"Найдите правильный перевод слова {ru_word}"
 
     keyboard_cards.add(answers, button_next)
     await bot.reply_to(message, text, reply_markup=keyboard_cards)
 
 
 @bot.callback_query_handler(func=lambda call: True)
-async def handle_callback(call):
+async def handle_callback_lesson(call):
     user = call.from_user
     name = user.first_name
+    chat_id = call.chat.id
+
+    ru_word, right_translation, wrong_translations = random_right_ru_en_couple(chat_id)
 
     if call.data == "right":
         text = "right"
