@@ -75,7 +75,6 @@ async def send_welcome(message):
 
     button_info = types.InlineKeyboardButton(text="Info ℹ️", callback_data="info")
 
-    keyboard_settings = types.IKeyboardMarkup(row_width=2)
     button_add = types.KeyboardButton("Добавить слово 📥")
     button_delete = types.KeyboardButton("Удалить слово 📤")
     button_cancel = types.KeyboardButton("Отмена")
@@ -84,7 +83,7 @@ async def send_welcome(message):
     keyboard_settings.add(button_add, button_delete, button_cancel)
 
     await bot.reply_to(message, text, reply_markup=keyboard)
-    await bot.reply_to(message, text, reply_markup=keyboard_settings)
+    await bot.reply_to(message, reply_markup=keyboard_settings)
 
 
 # обработканажатий на кнопки help, lesson и info
