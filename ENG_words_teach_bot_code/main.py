@@ -1,5 +1,6 @@
 print("Hello! I am an English words teach bot!")
 
+from unittest import result
 from dotenv import load_dotenv
 import os
 import asyncio
@@ -35,7 +36,7 @@ TOKEN = os.getenv("TG_BOT_TOKEN")
 bot = AsyncTeleBot(TOKEN)
 
 user_states = {}  # хранение состояний
-russin_word = {}
+russian_word = {}
 lesson_right_word = {}
 lesson_wrong_words = {}
 
@@ -101,7 +102,7 @@ async def handle_callback(call):
 
     elif call.data == "lesson":
         await bot.answer_callback_query(call.id)
-        await bot.send_message(call.message.chat.id, "Давай начнем урок")
+        await show_next_card(call.message.chat.id)
 
     elif call.data == "info":
         chat_id = call.message.chat.id
@@ -297,29 +298,33 @@ async def cancel_button(message: types.Message):
         await message.reply("✅ Операция отменена")
 
 
-@bot.message_handler(func=lambda m: m.text == "Lesson 📖")
-async def add_lesson_button(message: types.Message):
-    """получаем слово от пользователя по кнопке"""
-    chat_id = message.chat.id
+async def show_next_card(chat_id, message=None):
+    """Показать следующую карточку (общая логика)"""
+    global russian_word, lesson_right_word, lesson_wrong_words
 
-    # Устанавливаем состояние "ожидаем слово" для пользователя
-    user_states[chat_id] = "waiting_for_word"
-
-    await bot.reply_to(message, "Введите русское слово для добавления в словарь:")
-
-
-@bot.message_handler(commands=["lesson", "next"])
-async def lesson_command(message):
-
-    user = message.from_user
-    name = user.first_name
-    chat_id = message.chat.id
     # очищаем перед вызовом функции
-    del russin_word[chat_id]
-    del lesson_right_word[chat_id]
-    del lesson_wrong_words[chat_id]
+    if (
+        chat_id in russian_word
+        and chat_id in lesson_right_word
+        and chat_id in lesson_wrong_words
+    ):
+        del russian_word[chat_id]
+        del lesson_right_word[chat_id]
+        del lesson_wrong_words[chat_id]
 
-    ru_word, right_translation, wrong_translations = random_right_ru_en_couple(chat_id)
+    result = random_right_ru_en_couple(chat_id)
+
+    if result is None:
+        await bot.send_message(
+            chat_id, "📝 У вас нет слов в словаре. Добавьте слова сначала!"
+        )
+        return
+    else:
+        ru_word, right_translation, wrong_translations = result
+
+        russian_word[chat_id] = ru_word
+        lesson_right_word[chat_id] = right_translation
+        lesson_wrong_words[chat_id] = wrong_translations
 
     keyboard_cards = types.InlineKeyboardMarkup(row_width=2)
 
@@ -327,53 +332,70 @@ async def lesson_command(message):
         text=right_translation,
         callback_data="right",  # Данные, которые придут при нажатии
     )
+
+    if len(lesson_wrong_words[chat_id]) != 3:
+        del russian_word[chat_id]
+        del lesson_right_word[chat_id]
+        del lesson_wrong_words[chat_id]
+        await bot.send_message(chat_id, "Слов недостаточно или слишком много")
+        return
+
     button_wrong_1 = types.InlineKeyboardButton(
-        text=wrong_translations[0], callback_data="wrong_1"
+        text=lesson_wrong_words[chat_id][0], callback_data="wrong_1"
     )
     button_wrong_2 = types.InlineKeyboardButton(
-        text=wrong_translations[1], callback_data="wrong_2"
+        text=lesson_wrong_words[chat_id][1], callback_data="wrong_2"
     )
     button_wrong_3 = types.InlineKeyboardButton(
-        text=wrong_translations[2], callback_data="wrong_3"
+        text=lesson_wrong_words[chat_id][2], callback_data="wrong_3"
     )
+    answers = [button_wrong_1, button_wrong_2, button_wrong_3, button_right]
+    random.shuffle(answers)
     button_next = types.InlineKeyboardButton(text="Дальше⏭️", callback_data="next")
+    text = f"Найдите правильный перевод слова {russian_word[chat_id]}"
+    keyboard_cards.add(*answers, button_next)
 
-    answers = random.shuffle(
-        button_wrong_1, button_wrong_2, button_wrong_3, button_right
-    )
+    if message:
+        await bot.send_message(chat_id, text, reply_markup=keyboard_cards)
 
-    text = f"Найдите правильный перевод слова {ru_word}"
 
-    keyboard_cards.add(answers, button_next)
-    await bot.reply_to(message, text, reply_markup=keyboard_cards)
+@bot.message_handler(commands=["lesson", "next"])
+async def lesson_command(message):
+    await show_next_card(message.chat.id, message)
 
 
 @bot.callback_query_handler(func=lambda call: True)
 async def handle_callback_lesson(call):
-    user = call.from_user
-    name = user.first_name
-    chat_id = call.chat.id
-
-    ru_word, right_translation, wrong_translations = random_right_ru_en_couple(chat_id)
 
     if call.data == "right":
-        text = "right"
 
-        await bot.answer_callback_query(call.id)
-        await bot.send_message(call.message.chat.id, text)
+        chat_id = call.message.chat.id
+        if chat_id not in lesson_right_word:
+            await bot.answer_callback_query(call.id, "❌ Урок устарел")
+            return
+
+        text = "Вы совершенно правы!✅ "
+        await bot.answer_callback_query(call.id, text)
+        await asyncio.sleep(1)
+        await show_next_card(call.message.chat.id, call.message)
 
     elif call.data == "wrong_1":
-        text = "wrong_1"
+        text = "Ответ не верный, попробуйте еще раз"
         await bot.answer_callback_query(call.id)
         await bot.send_message(call.message.chat.id, text)
     elif call.data == "wrong_2":
-        text = "wrong_2"
+        text = "Ответ не верный, попробуйте еще раз"
         await bot.answer_callback_query(call.id)
         await bot.send_message(call.message.chat.id, text)
     elif call.data == "wrong_3":
-        text = "wrong_3"
+        text = "Ответ не верный, попробуйте еще раз"
         await bot.answer_callback_query(call.id)
         await bot.send_message(call.message.chat.id, text)
+    elif call.data == "next":
+        text = "Переходим к следующему слову"
+        await bot.answer_callback_query(call.id)
+        await asyncio.sleep(1)
+        await show_next_card(call.message.chat.id, call.message)
 
 
 if __name__ == "__main__":
