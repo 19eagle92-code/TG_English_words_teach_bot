@@ -168,25 +168,23 @@ async def lesson_command(message):
 # ========== ОБРАБОТКА КНОПОК REPLY-КЛАВИАТУРЫ ==========
 
 
-@bot.message_handler(func=lambda m: m.text == "Добавить слово 📥")
-async def add_word_button(message: types.Message):
-    """получаем слово от пользователя по кнопке"""
+@bot.message_handler(
+    func=lambda m: m.text in ["Добавить слово 📥", "Удалить слово 📤", "Отмена"]
+)
+async def handle_reply_buttons(message):
+    """Обработка кнопок Reply-клавиатуры (постоянное меню внизу)"""
     chat_id = message.chat.id
-    user_states[chat_id] = "waiting_for_word"
-    await bot.send_message(chat_id, "Введите русское слово для добавления в словарь:")
 
+    if message.text == "Добавить слово 📥":
+        user_states[chat_id] = "waiting_for_word"
+        await bot.send_message(chat_id, "Введите русское слово для добавления:")
 
-@bot.message_handler(func=lambda m: m.text == "Удалить слово 📤")
-async def delete_word_button(message: types.Message):
-    await start_delete_process(message)
+    elif message.text == "Удалить слово 📤":
+        user_states[chat_id] = "waiting_for_word_to_delete"
+        await bot.send_message(chat_id, "Введите русское слово для удаления:")
 
-
-@bot.message_handler(func=lambda m: m.text == "Отмена")
-async def cancel_button(message: types.Message):
-    chat_id = message.chat.id
-    if chat_id in user_states:
-        del user_states[chat_id]
-        await bot.send_message(chat_id, "✅ Операция отменена")
+    elif message.text == "Отмена":
+        await cancel_command(message)
 
 
 # ========== ОБРАБОТКА CALLBACK-ОВ (INLINE-КНОПОК) ==========
