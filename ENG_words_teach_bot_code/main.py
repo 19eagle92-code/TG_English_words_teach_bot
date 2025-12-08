@@ -28,55 +28,97 @@ TOKEN = os.getenv("TG_BOT_TOKEN")
 
 bot = AsyncTeleBot(TOKEN)
 
-user_states = {}  # хранение состояний
-russian_word = {}
-lesson_right_word = {}
-lesson_wrong_words = {}
+# Хранение состояния пользователей
+user_states = {}  # {chat_id: "state"}
+
+# Данные для уроков (глобальные, но с защитой от race conditions)
+russian_word = {}  # {chat_id: "русское слово"}
+lesson_right_word = {}  # {chat_id: "правильный перевод"}
+lesson_wrong_words = (
+    {}
+)  # {chat_id: ["неправильный 1", "неправильный 2", "неправильный 3"]}
+
+# Блокировки для защиты от одновременных операций с уроками (бустрых нажатий)
+lesson_locks = {}
 
 create_tables(engine)
 
 # ========== КОМАНДЫ ==========
 
 
-# Handle '/start'
 @bot.message_handler(commands=["start"])
 async def send_welcome(message):
+    """Обработка команды /start"""
     user = message.from_user
     user_name = user.first_name
     chat_id = message.chat.id
-    text = f"👋Привет {user_name}! Я English words teacher. \nДавай изучать английские слова! Пожалуйста выбери: \n/lesson - для начала урока \nили \n/help - что бы узнать что я могу \nили \n/info - узнать сколько слов вы сейчас изучаете"
-    add_client(chat_id, user_name)
 
-    keyboard = types.InlineKeyboardMarkup(row_width=2)
-    keyboard_settings = types.ReplyKeyboardMarkup(
-        resize_keyboard=True, row_width=2, one_time_keyboard=False
+    text = (
+        f"👋 Привет {user_name}! Я English words teacher.\n"
+        f"Давай изучать английские слова!\n\n"
+        f"Выбери:\n"
+        f"• /lesson - начать урок\n"
+        f"• /help - узнать, что я могу\n"
+        f"• /info - узнать, сколько слов вы изучаете"
     )
 
+    # Добавляем пользователя в БД
+    add_client(chat_id, user_name)
+
+    # Inline-клавиатура (кнопки под сообщением)
+    keyboard = types.InlineKeyboardMarkup(row_width=2)
     button_help = types.InlineKeyboardButton(text="Help 📎", callback_data="help")
     button_lesson = types.InlineKeyboardButton(text="Lesson 📖", callback_data="lesson")
     button_info = types.InlineKeyboardButton(text="Info ℹ️", callback_data="info")
+    keyboard.add(button_help, button_lesson, button_info)
+
+    # Reply-клавиатура (постоянное меню внизу)
+    keyboard_settings = types.ReplyKeyboardMarkup(
+        resize_keyboard=True, row_width=2, one_time_keyboard=False
+    )
     button_add = types.KeyboardButton("Добавить слово 📥")
     button_delete = types.KeyboardButton("Удалить слово 📤")
     button_cancel = types.KeyboardButton("Отмена")
-
-    keyboard.add(button_help, button_lesson, button_info)
     keyboard_settings.add(button_add, button_delete, button_cancel)
 
-    # Заменяем bot.reply_to() на bot.send_message()
     await bot.send_message(chat_id, text, reply_markup=keyboard)
     await bot.send_message(
         chat_id, "Выберите действие из меню ниже:", reply_markup=keyboard_settings
     )
 
 
+@bot.message_handler(commands=["help"])
+async def send_help(message):
+    """Обработка команды /help"""
+    name = message.from_user.first_name
+    chat_id = message.chat.id
+
+    text = (
+        f"{name}, я помогу тебе учить английские слова!\n\n"
+        "Основные команды:\n"
+        "• /start - Начать работу с ботом\n"
+        "• /info - Узнать количество изучаемых слов\n"
+        "• /add - Добавить новое слово в словарь\n"
+        "• /delete - Удалить выученное слово\n"
+        "• /cancel - Прервать операцию\n"
+        "• /lesson - Начать урок\n"
+        "• /next - Следующее слово\n\n"
+        "🎓 Учи слова регулярно для лучшего запоминания!"
+    )
+
+    await bot.send_message(chat_id, text)
+
+
 @bot.message_handler(commands=["info"])
 async def send_info(message):
+    """Обработка команды /info"""
     chat_id = message.chat.id
     count = count_user_english_words(chat_id)
+
     if count is False:
         text = "❌ Пользователь не найден"
     elif count == 0:
-        text = "У вас еще нет добавленных слов🥲"
+        text = "У вас еще нет добавленных слов 🥲"
     else:
         # Склонение слова "слов"
         if count % 10 == 1 and count % 100 != 11:
@@ -86,43 +128,41 @@ async def send_info(message):
         else:
             word = "слов"
         text = f"📊 Сейчас вы изучаете {count} английских {word}"
-    await bot.send_message(chat_id, text)
 
-
-@bot.message_handler(commands=["help"])
-async def send_help(message):
-    name = message.from_user.first_name
-    chat_id = message.chat.id
-    text = (
-        f"{name}, я помогу тебе учить английские слова!\n\n"
-        " Основные команды:\n"
-        "• /start - Начать работу с ботом\n"
-        "• /info - Узнать количество изучаемых слов\n"
-        "• /add - Добавить слово 📥 - Добавить новое слово в словарь\n"
-        "• /delete - Удалить слово 📤 - Удалить выученное слово\n"
-        "• /cancel - Отмена - Прервать операцию по добавлению или удалению слова \n"
-        "• /next - Дальше ⏭️ - Следующее слово для повторения\n"
-        "🎓 Учи слова регулярно для лучшего запоминания!"
-    )
     await bot.send_message(chat_id, text)
 
 
 @bot.message_handler(commands=["add"])
-async def add_word(message: types.Message):
-    """получаем слово от пользователя по команде"""
+async def add_word_command(message):
+    """Обработка команды /add"""
     chat_id = message.chat.id
     user_states[chat_id] = "waiting_for_word"
     await bot.send_message(chat_id, "Введите русское слово для добавления в словарь:")
 
 
+@bot.message_handler(commands=["delete"])
+async def delete_word_command(message):
+    """Обработка команды /delete"""
+    chat_id = message.chat.id
+    user_states[chat_id] = "waiting_for_word_to_delete"
+    await bot.send_message(chat_id, "Введите русское слово для удаления из словаря:")
+
+
+@bot.message_handler(commands=["cancel"])
+async def cancel_command(message):
+    """Обработка команды /cancel"""
+    chat_id = message.chat.id
+    if chat_id in user_states:
+        user_states.pop(chat_id)
+        await bot.send_message(chat_id, "✅ Операция отменена")
+    else:
+        await bot.send_message(chat_id, "ℹ️ Нет активных операций для отмены")
+
+
 @bot.message_handler(commands=["lesson", "next"])
 async def lesson_command(message):
+    """Обработка команд /lesson и /next"""
     await show_next_card(message.chat.id, message)
-
-
-@bot.message_handler(commands=["delete"])
-async def delete_word_command(message: types.Message):
-    await start_delete_process(message)
 
 
 # ========== ОБРАБОТКА КНОПОК REPLY-КЛАВИАТУРЫ ==========
