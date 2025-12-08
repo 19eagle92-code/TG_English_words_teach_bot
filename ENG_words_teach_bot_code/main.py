@@ -1,15 +1,3 @@
-# from unittest import result
-# from dotenv import load_dotenv
-# import os
-# import asyncio
-# from telebot.async_telebot import AsyncTeleBot
-# from telebot import types, custom_filters
-# from telebot.asyncio_storage import StateMemoryStorage
-# from telebot.handler_backends import State, StatesGroup
-# import telebot.async_telebot as telebot
-# import sys
-# import os
-# import random
 print("Hello! I am an English words teach bot!")
 
 import asyncio
@@ -17,7 +5,6 @@ import os
 import sys
 import random
 from dotenv import load_dotenv
-
 from telebot.async_telebot import AsyncTeleBot
 from telebot import types
 from telebot import custom_filters
@@ -32,11 +19,8 @@ from ENG_words_teach_bot_code.db_tables_create import (
     RussianWord,
     EnglishWord,
 )
-
 from ENG_words_teach_bot_code.work_with_storage import *
-
 from ENG_words_teach_bot_code.def_translate import translate_word
-
 
 load_dotenv()
 TOKEN = os.getenv("TG_BOT_TOKEN")
