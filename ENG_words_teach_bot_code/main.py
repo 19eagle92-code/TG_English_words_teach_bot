@@ -270,20 +270,21 @@ async def process_add_word(chat_id: int, word_text: str):
             await bot.send_message(
                 chat_id,
                 f"✅ Слово добавлено!\n\n"
-                f"**{word_text}** переводится как **{translation_1}** или **{translation_2}**",
+                f"**{word_text}** переводится как **{translation_1}** или **{translation_2}**\n\n"
+                f"Введите следующее русское слово для добавления: \n\n"
+                f"P.s. /cancel или Отмена ⛔ - для отмены",
                 parse_mode="Markdown",
             )
         else:
             await bot.send_message(
                 chat_id,
-                f"✅ Слово добавлено!\n\n**{word_text}** переводится как **{translation_1}**",
+                f"✅ Слово добавлено!\n\n**{word_text}** переводится как **{translation_1}**\n\n"
+                f"Введите следующее русское слово для добавления: \n\n"
+                f"P.s. /cancel или Отмена ⛔ - для отмены",
                 parse_mode="Markdown",
             )
-        await bot.send_message(
-            chat_id,
-            "✏️ Введите следующее русское слово для добавления"
-            "(нажмите Отмена ⛔ или /cancel для завершения):",
-        )
+        return
+
     else:
         await bot.send_message(chat_id, "❌ Ошибка при сохранении в базу данных")
 
