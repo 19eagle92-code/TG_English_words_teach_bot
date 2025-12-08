@@ -187,6 +187,126 @@ async def handle_reply_buttons(message):
         await cancel_command(message)
 
 
+# ========== ОБРАБОТЧИК ТЕКСТОВЫХ СООБЩЕНИЙ ==========
+
+
+@bot.message_handler(func=lambda message: True, content_types=["text"])
+async def handle_text_messages(message: types.Message):
+    """
+    Обрабатывает ВСЕ текстовые сообщения, которые не попали в другие обработчики.
+    Сюда попадают только сообщения, которые не команды и не кнопки Reply-клавиатуры.
+    """
+    chat_id = message.chat.id
+    text = message.text.strip()
+
+    # Если пользователь в состоянии ожидания
+    if chat_id in user_states:
+        state = user_states[chat_id]
+
+        # Защита: игнорируем команды во время ожидания
+        if text.startswith("/"):
+            await bot.send_message(
+                chat_id, "⚠️ Завершите текущую операцию или используйте /cancel"
+            )
+            return
+
+        if state == "waiting_for_word":
+            await process_add_word(chat_id, text)
+            return
+
+        elif state == "waiting_for_word_to_delete":
+            await process_delete_word(chat_id, text)
+            return
+
+    # Если не состояние и не команда - показываем подсказку
+    await bot.send_message(
+        chat_id,
+        "Используйте команды из меню или /help",
+        reply_markup=types.ReplyKeyboardRemove(),
+    )
+
+
+async def process_add_word(chat_id: int, word_text: str):
+    """Обработка добавления слова"""
+    # Базовая валидация
+    if not word_text or len(word_text) > 50:
+        await bot.send_message(
+            chat_id, "❌ Некорректное слово. Используйте слова длиной до 50 символов."
+        )
+        user_states.pop(chat_id, None)
+        return
+
+    reg_word = word_text.lower()
+
+    # Проверка уникальности
+    is_unique, msg = uniqe_word(reg_word, chat_id)
+
+    if not is_unique:
+        user_states.pop(chat_id, None)
+        await bot.send_message(chat_id, f"Слово '{word_text}' уже есть в словаре")
+        return
+
+    # Перевод слова
+    translation_1, translation_2 = translate_word(reg_word)
+
+    if not translation_1:
+        await bot.send_message(
+            chat_id, f"❌ Не удалось перевести '{word_text}'. Проверьте написание."
+        )
+        # НЕ удаляем состояние - пусть пользователь попробует снова
+        return
+
+    # Сохранение в БД
+    success = add_word_with_translations(
+        ru_word=reg_word,
+        chat_id=chat_id,
+        trans_word_1=translation_1,
+        trans_word_2=translation_2,
+    )
+
+    if success:
+        if translation_2:
+            await bot.send_message(
+                chat_id,
+                f"✅ Слово добавлено!\n\n"
+                f"**{word_text}** переводится как **{translation_1}** или **{translation_2}**",
+                parse_mode="Markdown",
+            )
+        else:
+            await bot.send_message(
+                chat_id,
+                f"✅ Слово добавлено!\n\n**{word_text}** переводится как **{translation_1}**",
+                parse_mode="Markdown",
+            )
+    else:
+        await bot.send_message(chat_id, "❌ Ошибка при сохранении в базу данных")
+
+    # Очищаем состояние
+    user_states.pop(chat_id, None)
+
+
+async def process_delete_word(chat_id: int, word_text: str):
+    """Обработка удаления слова"""
+    reg_word = word_text.lower()
+
+    is_unique, msg = uniqe_word(reg_word, chat_id)
+
+    # Если слово НЕ уникально (т.е. уже существует) - удаляем
+    if not is_unique and msg == "Слово уже существует":
+        deleted = delete_word(reg_word, chat_id)
+        if deleted:
+            await bot.send_message(chat_id, f"✅ Слово '{word_text}' удалено")
+        else:
+            await bot.send_message(chat_id, "❌ Ошибка при удалении")
+    elif not is_unique:
+        await bot.send_message(chat_id, f"ℹ️ {msg}")
+    else:
+        await bot.send_message(chat_id, f"ℹ️ Слово '{word_text}' не найдено")
+
+    # Очищаем состояние
+    user_states.pop(chat_id, None)
+
+
 # ========== ОБРАБОТКА CALLBACK-ОВ (INLINE-КНОПОК) ==========
 
 
