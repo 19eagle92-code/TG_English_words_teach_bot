@@ -1,17 +1,26 @@
+# from unittest import result
+# from dotenv import load_dotenv
+# import os
+# import asyncio
+# from telebot.async_telebot import AsyncTeleBot
+# from telebot import types, custom_filters
+# from telebot.asyncio_storage import StateMemoryStorage
+# from telebot.handler_backends import State, StatesGroup
+# import telebot.async_telebot as telebot
+# import sys
+# import os
+# import random
 print("Hello! I am an English words teach bot!")
 
-from unittest import result
-from dotenv import load_dotenv
-import os
 import asyncio
-from telebot.async_telebot import AsyncTeleBot
-from telebot import types, custom_filters
-from telebot.asyncio_storage import StateMemoryStorage
-from telebot.handler_backends import State, StatesGroup
-import telebot.async_telebot as telebot
-import sys
 import os
+import sys
 import random
+from dotenv import load_dotenv
+
+from telebot.async_telebot import AsyncTeleBot
+from telebot import types
+from telebot import custom_filters
 
 # Добавляем родительскую директорию в путь Python
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -40,11 +49,7 @@ russian_word = {}
 lesson_right_word = {}
 lesson_wrong_words = {}
 
-
-class Command:
-    ADD_WORD = "Добавить слово 📥"
-    DELETE_WORD = "Удалить слово📤"
-    NEXT_CARD = "Дальше ⏭️"
+create_tables(engine)
 
 
 # Handle '/start'
@@ -61,14 +66,9 @@ async def send_welcome(message):
         resize_keyboard=True, row_width=2, one_time_keyboard=False
     )
 
-    button_help = types.InlineKeyboardButton(
-        text="Help 📎", callback_data="help"  # Данные, которые придут при нажатии
-    )
-
+    button_help = types.InlineKeyboardButton(text="Help 📎", callback_data="help")
     button_lesson = types.InlineKeyboardButton(text="Lesson 📖", callback_data="lesson")
-
     button_info = types.InlineKeyboardButton(text="Info ℹ️", callback_data="info")
-
     button_add = types.KeyboardButton("Добавить слово 📥")
     button_delete = types.KeyboardButton("Удалить слово 📤")
     button_cancel = types.KeyboardButton("Отмена")
@@ -76,11 +76,13 @@ async def send_welcome(message):
     keyboard.add(button_help, button_lesson, button_info)
     keyboard_settings.add(button_add, button_delete, button_cancel)
 
-    await bot.reply_to(message, text, reply_markup=keyboard)
-    await bot.reply_to(message, reply_markup=keyboard_settings)
+    # Заменяем bot.reply_to() на bot.send_message()
+    await bot.send_message(chat_id, text, reply_markup=keyboard)
+    await bot.send_message(
+        chat_id, "Выберите действие из меню ниже:", reply_markup=keyboard_settings
+    )
 
 
-# обработканажатий на кнопки help, lesson и info
 @bot.callback_query_handler(func=lambda call: True)
 async def handle_callback(call):
     user = call.from_user
@@ -102,7 +104,7 @@ async def handle_callback(call):
 
     elif call.data == "lesson":
         await bot.answer_callback_query(call.id)
-        await show_next_card(call.message.chat.id)
+        await show_next_card(call.message.chat.id, call.message)
 
     elif call.data == "info":
         chat_id = call.message.chat.id
@@ -126,7 +128,9 @@ async def handle_callback(call):
 async def send_info(message):
     chat_id = message.chat.id
     count = count_user_english_words(chat_id)
-    if count is False or count == 0:
+    if count is False:
+        text = "❌ Пользователь не найден"
+    elif count == 0:
         text = "У вас еще нет добавленных слов🥲"
     else:
         # Склонение слова "слов"
@@ -137,12 +141,13 @@ async def send_info(message):
         else:
             word = "слов"
         text = f"📊 Сейчас вы изучаете {count} английских {word}"
-    await bot.send_message(message.chat.id, text)
+    await bot.send_message(chat_id, text)
 
 
 @bot.message_handler(commands=["help"])
 async def send_help(message):
     name = message.from_user.first_name
+    chat_id = message.chat.id
     text = (
         f"{name}, я помогу тебе учить английские слова!\n\n"
         " Основные команды:\n"
@@ -154,61 +159,58 @@ async def send_help(message):
         "• /next - Дальше ⏭️ - Следующее слово для повторения\n"
         "🎓 Учи слова регулярно для лучшего запоминания!"
     )
-    await bot.send_message(message.chat.id, text)
+    await bot.send_message(chat_id, text)
 
 
 @bot.message_handler(func=lambda m: m.text == "Добавить слово 📥")
 async def add_word_button(message: types.Message):
     """получаем слово от пользователя по кнопке"""
     chat_id = message.chat.id
-
-    # Устанавливаем состояние "ожидаем слово" для пользователя
     user_states[chat_id] = "waiting_for_word"
-
-    await bot.reply_to(message, "Введите русское слово для добавления в словарь:")
+    await bot.send_message(chat_id, "Введите русское слово для добавления в словарь:")
 
 
 @bot.message_handler(commands=["add"])
 async def add_word(message: types.Message):
     """получаем слово от пользователя по команде"""
     chat_id = message.chat.id
-
-    # Устанавливаем состояние "ожидаем слово" для пользователя
     user_states[chat_id] = "waiting_for_word"
+    await bot.send_message(chat_id, "Введите русское слово для добавления в словарь:")
 
-    await bot.reply_to(message, "Введите русское слово для добавления в словарь:")
 
-
-@bot.message_handler(func=lambda message: True)  # Обрабатывает все сообщения
-async def handle_all_messages(message: types.Message):
+@bot.message_handler(func=lambda message: True)
+async def handle_all_messages_add(message: types.Message):
     chat_id = message.chat.id
 
-    # Проверяем, находится ли пользователь в состоянии добавления слова
+    if message.text.startswith("/"):
+        await bot.send_message(
+            chat_id, "‼️ Сначала завершите текущую операцию (/cancel)"
+        )
+        return
+
     if chat_id in user_states and user_states[chat_id] == "waiting_for_word":
-        # приводим слово к нижнему регистру
         russian_word = message.text.strip()
         reg_russian_word = russian_word.lower()
 
-        # Проверяем уникальность
         is_unique, message_text = uniqe_word(reg_russian_word, chat_id)
 
         if not is_unique:
-            # Удаляем состояние
             del user_states[chat_id]
-            await bot.reply_to(message, f"Слово '{russian_word}' уже существует в базе")
-            return  # Выходим из функции
+            await bot.send_message(
+                chat_id, f"Слово '{russian_word}' уже существует в базе"
+            )
+            return
 
-        # Получаем перевод
         trans_word_1, trans_word_2 = translate_word(reg_russian_word)
 
         if trans_word_1 is None or not trans_word_1:
-            await message.reply(
+            await bot.send_message(
+                chat_id,
                 f"❌ Ошибка при переводе слова '{russian_word}'.\n\n"
-                " Проверьте написание и попробуйте ввести слово еще раз:"
+                " Проверьте написание и попробуйте ввести слово еще раз:",
             )
-            return  # Выходим из функции
+            return
 
-        # Добавляем в БД
         success = add_word_with_translations(
             ru_word=reg_russian_word,
             chat_id=chat_id,
@@ -218,17 +220,21 @@ async def handle_all_messages(message: types.Message):
 
         if success:
             if trans_word_2:
-                await message.reply(
+                await bot.send_message(
+                    chat_id,
                     f" Слово '{russian_word}' успешно добавлено ✅\n\n"
-                    f"  Переводится как '{trans_word_1}' или '{trans_word_2}' "
+                    f"  Переводится как '{trans_word_1}' или '{trans_word_2}' ",
                 )
             else:
-                await message.reply(
+                await bot.send_message(
+                    chat_id,
                     f" Слово '{russian_word}' успешно добавлено ✅\n\n"
-                    f"  Переводится как '{trans_word_1}'"
+                    f"  Переводится как '{trans_word_1}'",
                 )
         else:
-            await message.reply(f"❌ Ошибка при добавлении слова '{russian_word}'")
+            await bot.send_message(
+                chat_id, f"❌ Ошибка при добавлении слова '{russian_word}'"
+            )
 
         if chat_id in user_states:
             del user_states[chat_id]
@@ -238,7 +244,7 @@ async def start_delete_process(message: types.Message):
     """Общая функция для начала удаления"""
     chat_id = message.chat.id
     user_states[chat_id] = "waiting_for_word_to_delete"
-    await bot.reply_to(message, "Введите русское слово для удаления из словаря:")
+    await bot.send_message(chat_id, "Введите русское слово для удаления из словаря:")
 
 
 @bot.message_handler(func=lambda m: m.text == "Удалить слово 📤")
@@ -251,33 +257,27 @@ async def delete_word_command(message: types.Message):
     await start_delete_process(message)
 
 
-@bot.message_handler(func=lambda message: True)  # Обрабатывает все сообщения
-async def handle_all_messages(message: types.Message):
+@bot.message_handler(func=lambda message: True)
+async def handle_all_messages_delete(message: types.Message):
     chat_id = message.chat.id
 
-    # Проверяем, находится ли пользователь в состоянии добавления слова
     if chat_id in user_states and user_states[chat_id] == "waiting_for_word_to_delete":
-        # приводим слово к нижнему регистру
         russian_word = message.text.strip()
         reg_russian_word = russian_word.lower()
 
-        # Проверяем уникальность
         is_unique, msg = uniqe_word(reg_russian_word, chat_id)
 
         if not is_unique and msg == "Слово уже существует":
             deleted = delete_word(reg_russian_word, chat_id)
             if deleted:
-                await message.reply(f" Слово '{russian_word}' удалено✅")
+                await bot.send_message(chat_id, f" Слово '{russian_word}' удалено✅")
             else:
-                await message.reply(f"❌ Ошибка при удалении")
+                await bot.send_message(chat_id, f"❌ Ошибка при удалении")
         elif not is_unique:
-            # Другая ошибка (пользователь не найден)
-            await message.reply(f"❌ {msg}")
+            await bot.send_message(chat_id, f"❌ {msg}")
         else:
-            # Слово не существует (is_unique == True)
-            await message.reply(f"ℹ️ Слово '{russian_word}' не найдено")
+            await bot.send_message(chat_id, f"ℹ️ Слово '{russian_word}' не найдено")
 
-        # Удаляем состояние в любом случае
         if chat_id in user_states:
             del user_states[chat_id]
 
@@ -287,7 +287,9 @@ async def cancel_command(message: types.Message):
     chat_id = message.chat.id
     if chat_id in user_states:
         del user_states[chat_id]
-        await message.reply("✅ Операция отменена")
+        await bot.send_message(chat_id, "✅ Операция отменена")
+    else:
+        await bot.send_message(chat_id, "Нечего отменять")
 
 
 @bot.message_handler(func=lambda m: m.text == "Отмена")
@@ -295,7 +297,7 @@ async def cancel_button(message: types.Message):
     chat_id = message.chat.id
     if chat_id in user_states:
         del user_states[chat_id]
-        await message.reply("✅ Операция отменена")
+        await bot.send_message(chat_id, "✅ Операция отменена")
 
 
 async def show_next_card(chat_id, message=None):
@@ -398,6 +400,10 @@ async def handle_callback_lesson(call):
         await show_next_card(call.message.chat.id, call.message)
 
 
+print(user_states)  # хранение состояний
+print(russian_word)
+print(lesson_right_word)
+print(lesson_wrong_words)
 if __name__ == "__main__":
     print("Async Bot is running")
     asyncio.run(bot.polling())

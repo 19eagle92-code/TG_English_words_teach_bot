@@ -19,16 +19,20 @@ import sqlalchemy
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
 from sqlalchemy import func
-
+from sqlalchemy import create_engine
 
 load_dotenv()
 password = os.getenv("SECRET_KEY")
 
-DSN = f"postgresql://postgres:{password}@localhost:5432/english_words_bot"
-engine = sqlalchemy.create_engine(DSN)
+
+# DSN = f"postgresql://postgres:{password}@localhost:5432/english_words_bot"
+# engine = sqlalchemy.create_engine(DSN)
+# Session = sessionmaker(bind=engine)
 
 
-Session = sessionmaker(bind=engine)
+# для sqllite теста
+engine = create_engine("sqlite:///:memory:", echo=False, future=True)
+Session = sessionmaker(bind=engine, expire_on_commit=False)
 
 
 @contextmanager
