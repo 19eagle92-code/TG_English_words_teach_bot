@@ -307,37 +307,51 @@ async def process_delete_word(chat_id: int, word_text: str):
     user_states.pop(chat_id, None)
 
 
-# ========== ОБРАБОТКА CALLBACK-ОВ (INLINE-КНОПОК) ==========
+# ========== ОБРАБОТКА CALLBACK (INLINE-КНОПОК) ==========
 
 
 @bot.callback_query_handler(func=lambda call: True)
-async def handle_callback(call):
-    user = call.from_user
-    name = user.first_name
+async def unified_callback_handler(call):
+    """
+    Единый обработчик ВСЕХ callback-ов (нажатий на inline-кнопки)
+    """
+    # Меню (help, lesson, info) - обрабатываем здесь
+    if call.data in ["help", "lesson", "info"]:
+        await handle_menu_callback(call)
+    else:
+        # Урок (right, wrong_1, wrong_2, wrong_3, next)
+        await handle_lesson_callback(call)
+
+
+async def handle_menu_callback(call):
+    """Обработка callback-ов меню (help, lesson, info)"""
+    chat_id = call.message.chat.id
+
     if call.data == "help":
+        name = call.from_user.first_name
         text = (
             f"{name}, я помогу тебе учить английские слова!\n\n"
-            " Основные команды:\n"
+            "Основные команды:\n"
             "• /start - Начать работу с ботом\n"
             "• /info - Узнать количество изучаемых слов\n"
-            "• /add - Добавить слово 📥 - Добавить новое слово в словарь\n"
-            "• /delete - Удалить слово 📤 - Удалить выученное слово\n"
-            "• /cancel - Прервать операцию по добавлению или удалению слова \n"
-            "• /next - Дальше ⏭️ - Следующее слово для повторения\n"
+            "• /add - Добавить новое слово в словарь\n"
+            "• /delete - Удалить выученное слово\n"
+            "• /cancel - Прервать операцию\n"
+            "• /lesson - Начать урок\n"
+            "• /next - Следующее слово\n\n"
             "🎓 Учи слова регулярно для лучшего запоминания!"
         )
         await bot.answer_callback_query(call.id)
-        await bot.send_message(call.message.chat.id, text)
+        await bot.send_message(chat_id, text)
 
     elif call.data == "lesson":
         await bot.answer_callback_query(call.id)
-        await show_next_card(call.message.chat.id, call.message)
+        await show_next_card(chat_id, call.message)
 
     elif call.data == "info":
-        chat_id = call.message.chat.id
         count = count_user_english_words(chat_id)
-        if count is False or count == 0:
-            text = "У вас еще нет добавленных слов🥲"
+        if not count or count == 0:
+            text = "📝 Нет добавленных слов"
         else:
             # Склонение слова "слов"
             if count % 10 == 1 and count % 100 != 11:
@@ -346,113 +360,33 @@ async def handle_callback(call):
                 word = "слова"
             else:
                 word = "слов"
-            text = f"📊 Сейчас вы изучаете {count} английских {word}"
+            text = f"📊 Изучаете {count} {word}"
         await bot.answer_callback_query(call.id)
-        await bot.send_message(call.message.chat.id, text)
+        await bot.send_message(chat_id, text)
 
 
-@bot.message_handler(commands=["cancel"])
-async def cancel_command(message: types.Message):
-    chat_id = message.chat.id
-    if chat_id in user_states:
-        del user_states[chat_id]
-        await bot.send_message(chat_id, "✅ Операция отменена")
-    else:
-        await bot.send_message(chat_id, "Нечего отменять")
+async def handle_lesson_callback(call):
+    """Обработка callback-ов урока (right, wrong_*, next)"""
+    chat_id = call.message.chat.id
 
-
-@bot.message_handler(func=lambda message: True)
-async def handle_all_messages_add(message: types.Message):
-    chat_id = message.chat.id
-
-    if message.text.startswith("/"):
-        await bot.send_message(
-            chat_id, "‼️ Сначала завершите текущую операцию (/cancel)"
-        )
+    # Проверяем, что урок активен для этого пользователя
+    if chat_id not in lesson_right_word:
+        await bot.answer_callback_query(call.id, "❌ Урок неактивен. Начните новый.")
         return
 
-    if chat_id in user_states and user_states[chat_id] == "waiting_for_word":
-        russian_word = message.text.strip()
-        reg_russian_word = russian_word.lower()
+    if call.data == "right":
+        await bot.answer_callback_query(call.id, "✅ Верно!")
+        await asyncio.sleep(0.5)  # Небольшая задержка
+        await show_next_card(chat_id, call.message)
 
-        is_unique, message_text = uniqe_word(reg_russian_word, chat_id)
+    elif call.data.startswith("wrong_"):
+        # Все неправильные ответы обрабатываем одинаково
+        await bot.answer_callback_query(call.id, "❌ Неверно, попробуйте ещё")
 
-        if not is_unique:
-            del user_states[chat_id]
-            await bot.send_message(
-                chat_id, f"Слово '{russian_word}' уже существует в базе"
-            )
-            return
-
-        trans_word_1, trans_word_2 = translate_word(reg_russian_word)
-
-        if trans_word_1 is None or not trans_word_1:
-            await bot.send_message(
-                chat_id,
-                f"❌ Ошибка при переводе слова '{russian_word}'.\n\n"
-                " Проверьте написание и попробуйте ввести слово еще раз:",
-            )
-            return
-
-        success = add_word_with_translations(
-            ru_word=reg_russian_word,
-            chat_id=chat_id,
-            trans_word_1=trans_word_1,
-            trans_word_2=trans_word_2,
-        )
-
-        if success:
-            if trans_word_2:
-                await bot.send_message(
-                    chat_id,
-                    f" Слово '{russian_word}' успешно добавлено ✅\n\n"
-                    f"  Переводится как '{trans_word_1}' или '{trans_word_2}' ",
-                )
-            else:
-                await bot.send_message(
-                    chat_id,
-                    f" Слово '{russian_word}' успешно добавлено ✅\n\n"
-                    f"  Переводится как '{trans_word_1}'",
-                )
-        else:
-            await bot.send_message(
-                chat_id, f"❌ Ошибка при добавлении слова '{russian_word}'"
-            )
-
-        if chat_id in user_states:
-            del user_states[chat_id]
-
-
-async def start_delete_process(message: types.Message):
-    """Общая функция для начала удаления"""
-    chat_id = message.chat.id
-    user_states[chat_id] = "waiting_for_word_to_delete"
-    await bot.send_message(chat_id, "Введите русское слово для удаления из словаря:")
-
-
-@bot.message_handler(func=lambda message: True)
-async def handle_all_messages_delete(message: types.Message):
-    chat_id = message.chat.id
-
-    if chat_id in user_states and user_states[chat_id] == "waiting_for_word_to_delete":
-        russian_word = message.text.strip()
-        reg_russian_word = russian_word.lower()
-
-        is_unique, msg = uniqe_word(reg_russian_word, chat_id)
-
-        if not is_unique and msg == "Слово уже существует":
-            deleted = delete_word(reg_russian_word, chat_id)
-            if deleted:
-                await bot.send_message(chat_id, f" Слово '{russian_word}' удалено✅")
-            else:
-                await bot.send_message(chat_id, f"❌ Ошибка при удалении")
-        elif not is_unique:
-            await bot.send_message(chat_id, f"❌ {msg}")
-        else:
-            await bot.send_message(chat_id, f"ℹ️ Слово '{russian_word}' не найдено")
-
-        if chat_id in user_states:
-            del user_states[chat_id]
+    elif call.data == "next":
+        await bot.answer_callback_query(call.id, "⏭️ Пропускаем...")
+        await asyncio.sleep(0.5)
+        await show_next_card(chat_id, call.message)
 
 
 # ========== ФУНКЦИИ УРОКОВ ==========
@@ -462,7 +396,7 @@ async def show_next_card(chat_id, message=None):
     """Показать следующую карточку (общая логика)"""
     global russian_word, lesson_right_word, lesson_wrong_words
 
-    # очищаем перед вызовом функции
+    # очищаем состояния перед вызовом функции
     if (
         chat_id in russian_word
         and chat_id in lesson_right_word
