@@ -4,6 +4,7 @@ import asyncio
 import os
 import sys
 import random
+from types import DynamicClassAttribute
 from dotenv import load_dotenv
 from telebot.async_telebot import AsyncTeleBot
 from telebot import types
@@ -27,6 +28,20 @@ TOKEN = os.getenv("TG_BOT_TOKEN")
 # TOKEN = input("Insert your TG token:") #для проверки на стороннем боте
 
 bot = AsyncTeleBot(TOKEN)
+
+default_words = [
+    "зеленый",
+    "машина",
+    "снег",
+    "дом",
+    "солнце",
+    "книга",
+    "вода",
+    "любовь",
+    "работа",
+    "время",
+]
+
 
 # Хранение состояния пользователей
 user_states = {}  # {chat_id: "state"}
@@ -53,17 +68,28 @@ async def send_welcome(message):
     user_name = user.first_name
     chat_id = message.chat.id
 
+    # Добавляем пользователя в БД
+    add_client(chat_id, user_name)
+
+    # Добавляем слова по умолчанию с помощью отдельной функции
+    success = add_words_to_user(chat_id, default_words)
+
     text = (
         f"👋 Привет {user_name}! Я English words teacher.\n"
         f"Давай изучать английские слова!\n\n"
+    )
+
+    if success:
+        text += "✅ Ваш словарь пополнен базовыми словами!\n\n"
+    else:
+        text += "⚠️ Не удалось добавить некоторые слова\n\n"
+
+    text += (
         f"Выбери:\n"
         f"• /lesson - начать урок\n"
         f"• /help - узнать, что я могу\n"
         f"• /info - узнать, сколько слов вы изучаете"
     )
-
-    # Добавляем пользователя в БД
-    add_client(chat_id, user_name)
 
     # Inline-клавиатура (кнопки под сообщением)
     keyboard = types.InlineKeyboardMarkup(row_width=2)
@@ -79,11 +105,16 @@ async def send_welcome(message):
     button_add = types.KeyboardButton("Добавить слово 📥")
     button_delete = types.KeyboardButton("Удалить слово 📤")
     button_cancel = types.KeyboardButton("Отмена ⛔")
-    keyboard_settings.add(button_add, button_delete, button_cancel)
+    button_lesson_reply = types.KeyboardButton("Lesson 📖")
+    keyboard_settings.add(button_add, button_delete)
+    keyboard_settings.add(button_cancel)
+    keyboard_settings.add(button_lesson_reply)
 
     await bot.send_message(chat_id, text, reply_markup=keyboard)
     await bot.send_message(
-        chat_id, "Выберите действие из меню ниже:", reply_markup=keyboard_settings
+        chat_id,
+        "Так же можете выбрать действие из меню ниже:",
+        reply_markup=keyboard_settings,
     )
 
 
@@ -169,7 +200,8 @@ async def lesson_command(message):
 
 
 @bot.message_handler(
-    func=lambda m: m.text in ["Добавить слово 📥", "Удалить слово 📤", "Отмена ⛔"]
+    func=lambda m: m.text
+    in ["Добавить слово 📥", "Удалить слово 📤", "Отмена ⛔", "Lesson 📖"]
 )
 async def handle_reply_buttons(message):
     """Обработка кнопок Reply-клавиатуры (постоянное меню внизу)"""
@@ -185,6 +217,9 @@ async def handle_reply_buttons(message):
 
     elif message.text == "Отмена ⛔":
         await cancel_command(message)
+
+    elif message.text == "Lesson 📖":
+        await lesson_command(message)
 
 
 # ========== ОБРАБОТЧИК ТЕКСТОВЫХ СООБЩЕНИЙ ==========

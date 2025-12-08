@@ -278,3 +278,33 @@ def random_right_ru_en_couple(chat_id):
                 wrong_translations.append(random_translation)
 
         return random_ru_word.ru_word, correct_translation, wrong_translations
+
+
+def add_words_to_user(chat_id, words_to_add):
+    """Добавляет список слов пользователю"""
+    added_count = 0
+    skipped_count = 0
+
+    for word in words_to_add:
+        trans_1, trans_2 = translate_word(word)
+
+        if not trans_1:
+            print(f"  Пропущено '{word}': нет перевода")
+            skipped_count += 1
+            continue
+
+        # Сохранение в БД
+        success = add_word_with_translations(
+            ru_word=word,
+            chat_id=chat_id,
+            trans_word_1=trans_1,
+            trans_word_2=trans_2,
+        )
+
+        if success:
+            added_count += 1
+        else:
+            skipped_count += 1
+
+    print(f"Добавлено слов: {added_count}, пропущено: {skipped_count}")
+    return added_count > 0  # True, если хотя бы одно слово добавлено
