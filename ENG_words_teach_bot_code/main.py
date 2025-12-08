@@ -78,7 +78,7 @@ async def send_welcome(message):
     )
     button_add = types.KeyboardButton("Добавить слово 📥")
     button_delete = types.KeyboardButton("Удалить слово 📤")
-    button_cancel = types.KeyboardButton("Отмена")
+    button_cancel = types.KeyboardButton("Отмена ⛔")
     keyboard_settings.add(button_add, button_delete, button_cancel)
 
     await bot.send_message(chat_id, text, reply_markup=keyboard)
@@ -169,7 +169,7 @@ async def lesson_command(message):
 
 
 @bot.message_handler(
-    func=lambda m: m.text in ["Добавить слово 📥", "Удалить слово 📤", "Отмена"]
+    func=lambda m: m.text in ["Добавить слово 📥", "Удалить слово 📤", "Отмена ⛔"]
 )
 async def handle_reply_buttons(message):
     """Обработка кнопок Reply-клавиатуры (постоянное меню внизу)"""
@@ -183,7 +183,7 @@ async def handle_reply_buttons(message):
         user_states[chat_id] = "waiting_for_word_to_delete"
         await bot.send_message(chat_id, "Введите русское слово для удаления:")
 
-    elif message.text == "Отмена":
+    elif message.text == "Отмена ⛔":
         await cancel_command(message)
 
 
@@ -221,14 +221,14 @@ async def handle_text_messages(message: types.Message):
     # Если не состояние и не команда - показываем подсказку
     await bot.send_message(
         chat_id,
-        "Используйте команды из меню или /help",
+        "Используйте команды из меню, /help или начните сначала /start",
         reply_markup=types.ReplyKeyboardRemove(),
     )
 
 
 async def process_add_word(chat_id: int, word_text: str):
     """Обработка добавления слова"""
-    # Базовая валидация
+    # Проверка слова
     if not word_text or len(word_text) > 50:
         await bot.send_message(
             chat_id, "❌ Некорректное слово. Используйте слова длиной до 50 символов."
@@ -251,9 +251,10 @@ async def process_add_word(chat_id: int, word_text: str):
 
     if not translation_1:
         await bot.send_message(
-            chat_id, f"❌ Не удалось перевести '{word_text}'. Проверьте написание."
+            chat_id,
+            f"❌ Не удалось перевести '{word_text}'. Проверьте написание и введите снова:.",
         )
-        # НЕ удаляем состояние - пусть пользователь попробует снова
+        # НЕ удаляем состояние, можем попробовать снова
         return
 
     # Сохранение в БД
@@ -313,7 +314,7 @@ async def process_delete_word(chat_id: int, word_text: str):
 @bot.callback_query_handler(func=lambda call: True)
 async def unified_callback_handler(call):
     """
-    Единый обработчик ВСЕХ callback-ов (нажатий на inline-кнопки)
+    Единый обработчик ВСЕХ callback (нажатий на inline-кнопки)
     """
     # Меню (help, lesson, info) - обрабатываем здесь
     if call.data in ["help", "lesson", "info"]:
@@ -351,7 +352,7 @@ async def handle_menu_callback(call):
     elif call.data == "info":
         count = count_user_english_words(chat_id)
         if not count or count == 0:
-            text = "📝 Нет добавленных слов"
+            text = "У вас еще нет добавленных слов 🥲"
         else:
             # Склонение слова "слов"
             if count % 10 == 1 and count % 100 != 11:
