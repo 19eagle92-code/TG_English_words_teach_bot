@@ -35,6 +35,8 @@ lesson_wrong_words = {}
 
 create_tables(engine)
 
+# ========== КОМАНДЫ ==========
+
 
 # Handle '/start'
 @bot.message_handler(commands=["start"])
@@ -65,6 +67,89 @@ async def send_welcome(message):
     await bot.send_message(
         chat_id, "Выберите действие из меню ниже:", reply_markup=keyboard_settings
     )
+
+
+@bot.message_handler(commands=["info"])
+async def send_info(message):
+    chat_id = message.chat.id
+    count = count_user_english_words(chat_id)
+    if count is False:
+        text = "❌ Пользователь не найден"
+    elif count == 0:
+        text = "У вас еще нет добавленных слов🥲"
+    else:
+        # Склонение слова "слов"
+        if count % 10 == 1 and count % 100 != 11:
+            word = "слово"
+        elif 2 <= count % 10 <= 4 and (count % 100 < 10 or count % 100 >= 20):
+            word = "слова"
+        else:
+            word = "слов"
+        text = f"📊 Сейчас вы изучаете {count} английских {word}"
+    await bot.send_message(chat_id, text)
+
+
+@bot.message_handler(commands=["help"])
+async def send_help(message):
+    name = message.from_user.first_name
+    chat_id = message.chat.id
+    text = (
+        f"{name}, я помогу тебе учить английские слова!\n\n"
+        " Основные команды:\n"
+        "• /start - Начать работу с ботом\n"
+        "• /info - Узнать количество изучаемых слов\n"
+        "• /add - Добавить слово 📥 - Добавить новое слово в словарь\n"
+        "• /delete - Удалить слово 📤 - Удалить выученное слово\n"
+        "• /cancel - Отмена - Прервать операцию по добавлению или удалению слова \n"
+        "• /next - Дальше ⏭️ - Следующее слово для повторения\n"
+        "🎓 Учи слова регулярно для лучшего запоминания!"
+    )
+    await bot.send_message(chat_id, text)
+
+
+@bot.message_handler(commands=["add"])
+async def add_word(message: types.Message):
+    """получаем слово от пользователя по команде"""
+    chat_id = message.chat.id
+    user_states[chat_id] = "waiting_for_word"
+    await bot.send_message(chat_id, "Введите русское слово для добавления в словарь:")
+
+
+@bot.message_handler(commands=["lesson", "next"])
+async def lesson_command(message):
+    await show_next_card(message.chat.id, message)
+
+
+@bot.message_handler(commands=["delete"])
+async def delete_word_command(message: types.Message):
+    await start_delete_process(message)
+
+
+# ========== ОБРАБОТКА КНОПОК REPLY-КЛАВИАТУРЫ ==========
+
+
+@bot.message_handler(func=lambda m: m.text == "Добавить слово 📥")
+async def add_word_button(message: types.Message):
+    """получаем слово от пользователя по кнопке"""
+    chat_id = message.chat.id
+    user_states[chat_id] = "waiting_for_word"
+    await bot.send_message(chat_id, "Введите русское слово для добавления в словарь:")
+
+
+@bot.message_handler(func=lambda m: m.text == "Удалить слово 📤")
+async def delete_word_button(message: types.Message):
+    await start_delete_process(message)
+
+
+@bot.message_handler(func=lambda m: m.text == "Отмена")
+async def cancel_button(message: types.Message):
+    chat_id = message.chat.id
+    if chat_id in user_states:
+        del user_states[chat_id]
+        await bot.send_message(chat_id, "✅ Операция отменена")
+
+
+# ========== ОБРАБОТКА CALLBACK-ОВ (INLINE-КНОПОК) ==========
 
 
 @bot.callback_query_handler(func=lambda call: True)
@@ -108,58 +193,14 @@ async def handle_callback(call):
         await bot.send_message(call.message.chat.id, text)
 
 
-@bot.message_handler(commands=["info"])
-async def send_info(message):
+@bot.message_handler(commands=["cancel"])
+async def cancel_command(message: types.Message):
     chat_id = message.chat.id
-    count = count_user_english_words(chat_id)
-    if count is False:
-        text = "❌ Пользователь не найден"
-    elif count == 0:
-        text = "У вас еще нет добавленных слов🥲"
+    if chat_id in user_states:
+        del user_states[chat_id]
+        await bot.send_message(chat_id, "✅ Операция отменена")
     else:
-        # Склонение слова "слов"
-        if count % 10 == 1 and count % 100 != 11:
-            word = "слово"
-        elif 2 <= count % 10 <= 4 and (count % 100 < 10 or count % 100 >= 20):
-            word = "слова"
-        else:
-            word = "слов"
-        text = f"📊 Сейчас вы изучаете {count} английских {word}"
-    await bot.send_message(chat_id, text)
-
-
-@bot.message_handler(commands=["help"])
-async def send_help(message):
-    name = message.from_user.first_name
-    chat_id = message.chat.id
-    text = (
-        f"{name}, я помогу тебе учить английские слова!\n\n"
-        " Основные команды:\n"
-        "• /start - Начать работу с ботом\n"
-        "• /info - Узнать количество изучаемых слов\n"
-        "• /add - Добавить слово 📥 - Добавить новое слово в словарь\n"
-        "• /delete - Удалить слово 📤 - Удалить выученное слово\n"
-        "• /cancel - Отмена - Прервать операцию по добавлению или удалению слова \n"
-        "• /next - Дальше ⏭️ - Следующее слово для повторения\n"
-        "🎓 Учи слова регулярно для лучшего запоминания!"
-    )
-    await bot.send_message(chat_id, text)
-
-
-@bot.message_handler(func=lambda m: m.text == "Добавить слово 📥")
-async def add_word_button(message: types.Message):
-    """получаем слово от пользователя по кнопке"""
-    chat_id = message.chat.id
-    user_states[chat_id] = "waiting_for_word"
-    await bot.send_message(chat_id, "Введите русское слово для добавления в словарь:")
-
-
-@bot.message_handler(commands=["add"])
-async def add_word(message: types.Message):
-    """получаем слово от пользователя по команде"""
-    chat_id = message.chat.id
-    user_states[chat_id] = "waiting_for_word"
-    await bot.send_message(chat_id, "Введите русское слово для добавления в словарь:")
+        await bot.send_message(chat_id, "Нечего отменять")
 
 
 @bot.message_handler(func=lambda message: True)
@@ -231,16 +272,6 @@ async def start_delete_process(message: types.Message):
     await bot.send_message(chat_id, "Введите русское слово для удаления из словаря:")
 
 
-@bot.message_handler(func=lambda m: m.text == "Удалить слово 📤")
-async def delete_word_button(message: types.Message):
-    await start_delete_process(message)
-
-
-@bot.message_handler(commands=["delete"])
-async def delete_word_command(message: types.Message):
-    await start_delete_process(message)
-
-
 @bot.message_handler(func=lambda message: True)
 async def handle_all_messages_delete(message: types.Message):
     chat_id = message.chat.id
@@ -266,22 +297,7 @@ async def handle_all_messages_delete(message: types.Message):
             del user_states[chat_id]
 
 
-@bot.message_handler(commands=["cancel"])
-async def cancel_command(message: types.Message):
-    chat_id = message.chat.id
-    if chat_id in user_states:
-        del user_states[chat_id]
-        await bot.send_message(chat_id, "✅ Операция отменена")
-    else:
-        await bot.send_message(chat_id, "Нечего отменять")
-
-
-@bot.message_handler(func=lambda m: m.text == "Отмена")
-async def cancel_button(message: types.Message):
-    chat_id = message.chat.id
-    if chat_id in user_states:
-        del user_states[chat_id]
-        await bot.send_message(chat_id, "✅ Операция отменена")
+# ========== ФУНКЦИИ УРОКОВ ==========
 
 
 async def show_next_card(chat_id, message=None):
@@ -345,11 +361,6 @@ async def show_next_card(chat_id, message=None):
         await bot.send_message(chat_id, text, reply_markup=keyboard_cards)
 
 
-@bot.message_handler(commands=["lesson", "next"])
-async def lesson_command(message):
-    await show_next_card(message.chat.id, message)
-
-
 @bot.callback_query_handler(func=lambda call: True)
 async def handle_callback_lesson(call):
 
@@ -384,10 +395,6 @@ async def handle_callback_lesson(call):
         await show_next_card(call.message.chat.id, call.message)
 
 
-print(user_states)  # хранение состояний
-print(russian_word)
-print(lesson_right_word)
-print(lesson_wrong_words)
 if __name__ == "__main__":
     print("Async Bot is running")
     asyncio.run(bot.polling())
