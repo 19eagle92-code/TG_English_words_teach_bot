@@ -396,5 +396,10 @@ async def handle_callback_lesson(call):
 
 
 if __name__ == "__main__":
-    print("Async Bot is running")
-    asyncio.run(bot.polling())
+    print("🤖 Async Bot is running...")
+    try:
+        asyncio.run(bot.polling())
+    except KeyboardInterrupt:
+        print("\n🛑 Bot stopped by user")
+    except Exception as e:
+        print(f"\n❌ Error: {e}")
