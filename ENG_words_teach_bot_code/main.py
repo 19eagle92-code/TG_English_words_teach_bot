@@ -281,8 +281,8 @@ async def process_add_word(chat_id: int, word_text: str):
             )
         await bot.send_message(
             chat_id,
-            "✏️ Введите следующее русское слово для добавления: "
-            "(нажмите Отмена ⛔ или /cancel для завершения)",
+            "✏️ Введите следующее русское слово для добавления"
+            "(нажмите Отмена ⛔ или /cancel для завершения):",
         )
     else:
         await bot.send_message(chat_id, "❌ Ошибка при сохранении в базу данных")
