@@ -69,20 +69,22 @@ async def send_welcome(message):
     chat_id = message.chat.id
 
     # Добавляем пользователя в БД
-    add_client(chat_id, user_name)
+    # add_client(chat_id, user_name)
 
-    # Добавляем слова по умолчанию с помощью отдельной функции
-    success = add_words_to_user(chat_id, default_words)
-
+    new = add_client(chat_id, user_name)
     text = (
         f"👋 Привет {user_name}! Я English words teacher.\n"
         f"Давай изучать английские слова!\n\n"
     )
+    if new:
+        success = add_words_to_user(chat_id, default_words)
+        if success:
 
-    if success:
-        text += "✅ Ваш словарь пополнен базовыми словами!\n\n"
+            text += "✅ Ваш словарь пополнен базовыми словами!\n\n"
+        else:
+            text += "⚠️ Не удалось добавить некоторые слова\n\n"
     else:
-        text += "⚠️ Не удалось добавить некоторые слова\n\n"
+        text += "Рад снова тебя видеть! 👋\n\n"
 
     text += (
         f"Выбери:\n"
